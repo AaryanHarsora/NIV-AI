@@ -24,6 +24,7 @@ from firebase.firestore_ops import (
     get_session,
     get_session_history,
     save_behavioral_intake,
+    get_behavioral_intake,
     save_financial_inputs,
     save_simulation_results,
     save_report_url,
@@ -233,14 +234,12 @@ async def analyze_route(
         # --- Call Dev 2's orchestrator ---
         if orchestrator:
             # Get behavioral intake from Firestore
-            from firebase.firebase_admin import db as firestore_db
-            intake_docs = firestore_db.collection("sessions").document(session_id) \
-                .collection("behavioral_intake").stream()
-            answers = [doc.to_dict() for doc in intake_docs]
+            intake_data = get_behavioral_intake(session_id)
+            answers = intake_data.get("answers", [])
 
             behavioral_intake = BehavioralIntake(
                 session_id=session_id,
-                answers=answers if answers else [],
+                answers=answers,
             )
 
             analysis_response = await orchestrator.analyze(

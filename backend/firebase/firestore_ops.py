@@ -79,6 +79,27 @@ def save_behavioral_intake(session_id: str, answers: list) -> None:
     update_session(session_id, {"status": "behavioral_done"})
 
 
+def get_behavioral_intake(session_id: str) -> dict:
+    """
+    Retrieves all behavioral intake answers for a session.
+
+    DEV 2 calls this when loading context for orchestrator.analyze().
+
+    Returns:
+        dict matching BehavioralIntake shape:
+        {
+            "session_id": str,
+            "answers": List[dict]   # each dict matches BehavioralAnswer schema
+        }
+    """
+    docs = db.collection("sessions").document(session_id) \
+             .collection("behavioral_intake").stream()
+    answers = []
+    for doc in docs:
+        answers.append(doc.to_dict())
+    return {"session_id": session_id, "answers": answers}
+
+
 # ---------------------------------------------------------------------------
 # Financial inputs
 # ---------------------------------------------------------------------------
