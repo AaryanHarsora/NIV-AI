@@ -1,0 +1,3216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIV AI — Fiduciary Decision Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS + RESET
+═══════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f8f5ee;
+  --black: #111111;
+  --white: #ffffff;
+  --trust: #1e3a8a;
+  --risk: #991b1b;
+  --safe: #065f46;
+  --accent: #b45309;
+  --border: 3px solid #111111;
+  --shadow: 4px 4px 0 #111111;
+  --shadow-lg: 6px 6px 0 #111111;
+  --font-mono: 'Space Mono', monospace;
+  --font-display: 'Playfair Display', serif;
+  --text-primary: #111111;
+  --text-secondary: #444444;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+body {
+  display: grid;
+  grid-template-rows: 56px 1fr 40px;
+  min-height: 100vh;
+}
+
+/* ─── GRID PAPER BG ─── */
+#canvas {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(rgba(0,0,0,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 40px 16px;
+  overflow-y: auto;
+}
+
+/* ═══════════════════════════════════════════════
+   TOP BAR
+═══════════════════════════════════════════════ */
+#top-bar {
+  border-bottom: var(--border);
+  background: var(--black);
+  color: var(--bg);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+#top-bar .logo {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#top-bar .logo .logo-tag {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  color: var(--trust);
+  border: 1px solid var(--trust);
+  padding: 2px 5px;
+  letter-spacing: 0.1em;
+  vertical-align: middle;
+  background: rgba(30,58,138,0.15);
+}
+#top-bar .center-tag {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #666;
+  text-align: center;
+}
+#top-bar .nav-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.nav-btn {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border: 1.5px solid #444;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.nav-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+.nav-btn.danger:hover:not(:disabled) { border-color: var(--risk); color: #ef4444; }
+#session-badge {
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  color: #555;
+  border: 1px solid #333;
+  padding: 3px 8px;
+  display: none;
+}
+#session-badge.visible { display: block; }
+
+/* ═══════════════════════════════════════════════
+   BOTTOM BAR
+═══════════════════════════════════════════════ */
+#bottom-bar {
+  border-top: var(--border);
+  background: var(--black);
+  color: #444;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.status-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #22c55e;
+}
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+#state-label { color: #666; }
+
+/* ═══════════════════════════════════════════════
+   STATE CONTAINERS
+═══════════════════════════════════════════════ */
+.state { display: none; width: 100%; max-width: 720px; }
+.state.active { display: block; animation: fadeIn 0.2s ease; }
+.state.wide { max-width: 1200px; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ═══════════════════════════════════════════════
+   STEPPER
+═══════════════════════════════════════════════ */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 32px;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #888;
+  flex-shrink: 0;
+}
+.step-num {
+  width: 22px; height: 22px;
+  border: 2px solid #888;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.step.done .step-num { background: var(--black); border-color: var(--black); color: var(--white); }
+.step.current .step-num { background: var(--accent); border-color: var(--accent); color: var(--white); }
+.step.current { color: var(--accent); }
+.step-line { flex: 1; height: 2px; background: #ddd; min-width: 16px; }
+.step-line.done { background: var(--black); }
+
+/* ═══════════════════════════════════════════════
+   CARDS & COMMON
+═══════════════════════════════════════════════ */
+.card {
+  background: var(--white);
+  border: var(--border);
+  box-shadow: var(--shadow-lg);
+  padding: 40px;
+}
+.card-header { margin-bottom: 28px; }
+.section-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.card-title {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.card-sub {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  line-height: 1.6;
+}
+hr.divider {
+  border: none;
+  border-top: 2px solid var(--black);
+  margin: 24px 0;
+}
+
+/* ═══════════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════════ */
+.btn {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 14px 28px;
+  border: var(--border);
+  background: var(--black);
+  color: var(--white);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.08s, box-shadow 0.08s;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+}
+.btn:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 #111; }
+.btn:active:not(:disabled) { transform: translate(2px,2px); box-shadow: 2px 2px 0 #111; }
+.btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-trust { background: var(--trust); }
+.btn-accent { background: var(--accent); }
+.btn-safe { background: var(--safe); }
+.btn-outline { background: var(--white); color: var(--black); }
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+#toast {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--risk);
+  color: var(--white);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  padding: 12px 24px;
+  border: 2px solid #111;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ═══════════════════════════════════════════════
+   STATE 0: LOGIN
+═══════════════════════════════════════════════ */
+.login-card {
+  background: var(--white);
+  border: var(--border);
+  box-shadow: var(--shadow-lg);
+  padding: 52px 44px;
+  text-align: center;
+}
+.niv-logo-block {
+  display: inline-block;
+  background: var(--black);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  font-weight: 900;
+  padding: 14px 36px 10px;
+  margin-bottom: 4px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.niv-logo-block sup {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--trust);
+  vertical-align: top;
+  margin-top: 6px;
+  display: inline-block;
+}
+.login-tagline {
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 28px;
+  margin-top: 2px;
+}
+.login-desc {
+  font-size: 0.7rem;
+  line-height: 1.85;
+  color: var(--text-secondary);
+  border-left: 4px solid var(--accent);
+  padding: 12px 16px;
+  text-align: left;
+  background: #fffbf5;
+  margin-bottom: 24px;
+}
+.trust-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+.trust-badge {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border: 1.5px solid var(--black);
+  background: var(--bg);
+  color: var(--text-secondary);
+}
+.api-note {
+  font-size: 0.55rem;
+  color: #999;
+  margin-top: 12px;
+  letter-spacing: 0.05em;
+}
+
+/* ═══════════════════════════════════════════════
+   STATE 1: BEHAVIORAL
+═══════════════════════════════════════════════ */
+.scenario-box {
+  background: var(--black);
+  color: #fbbf24;
+  font-size: 0.72rem;
+  line-height: 1.75;
+  padding: 20px 24px;
+  margin: 20px 0 28px;
+  font-style: italic;
+  border-left: 6px solid var(--accent);
+}
+.scenario-box strong { color: var(--accent); font-style: normal; }
+.choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.choice-btn {
+  border: var(--border);
+  box-shadow: var(--shadow);
+  padding: 24px 20px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  text-align: left;
+  background: var(--white);
+  transition: transform 0.08s, box-shadow 0.08s, background 0.1s;
+}
+.choice-btn:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 #111; }
+.choice-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.choice-icon { font-size: 1.5rem; margin-bottom: 12px; display: block; }
+.choice-label { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; display: block; margin-bottom: 6px; }
+.choice-desc { font-size: 0.63rem; color: #666; line-height: 1.55; }
+.choice-signal { display: block; margin-top: 12px; font-size: 0.55rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; }
+.choice-btn.fomo-btn .choice-signal { color: var(--risk); }
+.choice-btn.rational-btn .choice-signal { color: var(--trust); }
+.choice-btn.fomo-btn:hover { background: #fff1f1; }
+.choice-btn.rational-btn:hover { background: #eff6ff; }
+.bias-note {
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: 1.5px dashed #bbb;
+  font-size: 0.58rem;
+  color: #888;
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════
+   STATE 2: INPUT ENGINE
+═══════════════════════════════════════════════ */
+.form-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.form-grid-3col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.form-field label {
+  display: block;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.form-field label .req { color: var(--risk); }
+.form-field input,
+.form-field select {
+  width: 100%;
+  padding: 11px 14px;
+  border: var(--border);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  outline: none;
+  box-shadow: var(--shadow);
+  appearance: none;
+  -webkit-appearance: none;
+}
+.form-field input:focus,
+.form-field select:focus {
+  box-shadow: 5px 5px 0 var(--accent);
+  border-color: var(--accent);
+}
+.form-field .hint {
+  font-size: 0.55rem;
+  color: #999;
+  margin-top: 5px;
+}
+.form-section-label {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border: 1.5px solid #ccc;
+  padding: 5px 12px;
+  display: inline-block;
+  margin-bottom: 16px;
+}
+.form-field.span2 { grid-column: span 2; }
+.form-field.span3 { grid-column: span 3; }
+
+/* ═══════════════════════════════════════════════
+   STATE 3: ROUNDTABLE — TWO COLUMN
+═══════════════════════════════════════════════ */
+.rt-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.rt-left {}
+.rt-right {}
+.rt-header {
+  margin-bottom: 20px;
+}
+.rt-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+/* Agent cards */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.agent-card {
+  border: var(--border);
+  padding: 14px 10px;
+  text-align: center;
+  background: var(--white);
+  opacity: 0.35;
+  transition: opacity 0.3s, border-color 0.3s;
+}
+.agent-card.active { opacity: 1; box-shadow: var(--shadow); border-color: var(--accent); }
+.agent-card.done { opacity: 1; border-color: #22c55e; }
+.agent-card.error { opacity: 1; border-color: var(--risk); }
+.agent-icon { font-size: 1.3rem; margin-bottom: 4px; }
+.agent-name { font-size: 0.52rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.agent-status { font-size: 0.48rem; color: #888; margin-top: 3px; }
+.agent-card.active .agent-status { color: var(--accent); }
+.agent-card.done .agent-status { color: #22c55e; }
+.agent-card.error .agent-status { color: var(--risk); }
+
+/* Terminal */
+.terminal {
+  background: #0a0a0a;
+  border: var(--border);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.terminal-header {
+  background: #181818;
+  border-bottom: 2px solid #2a2a2a;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.terminal-dots { display: flex; gap: 5px; }
+.t-dot { width: 10px; height: 10px; border-radius: 50%; }
+.t-red { background: #ef4444; }
+.t-yellow { background: #fbbf24; }
+.t-green { background: #22c55e; }
+.terminal-title {
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #555;
+}
+.terminal-body {
+  padding: 16px 18px;
+  min-height: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  font-size: 0.68rem;
+  line-height: 1.9;
+  color: #d0d0d0;
+  scroll-behavior: smooth;
+}
+.terminal-body::-webkit-scrollbar { width: 4px; }
+.terminal-body::-webkit-scrollbar-thumb { background: #333; }
+.log-line { display: flex; gap: 10px; margin-bottom: 1px; align-items: flex-start; }
+.log-ts { color: #444; flex-shrink: 0; font-size: 0.6rem; }
+.log-agent { flex-shrink: 0; font-weight: 700; min-width: 110px; }
+.log-agent.math { color: #60a5fa; }
+.log-agent.bias { color: #fbbf24; }
+.log-agent.reg  { color: #34d399; }
+.log-agent.risk { color: #f87171; }
+.log-agent.sys  { color: var(--accent); }
+.log-msg { color: #bbb; flex: 1; font-size: 0.62rem; }
+.cursor-blink {
+  display: inline-block;
+  width: 7px; height: 13px;
+  background: #d0d0d0;
+  animation: blink 0.8s step-end infinite;
+  vertical-align: -2px;
+  margin-left: 3px;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.ws-status {
+  margin-bottom: 12px;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ws-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #fbbf24;
+  animation: pulse 1.5s infinite;
+}
+.ws-dot.connected { background: #22c55e; }
+.ws-dot.error { background: var(--risk); animation: none; }
+
+/* Force-directed graph panel */
+.force-graph-container {
+  background: #0a0a0a;
+  border: var(--border);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.force-graph-header {
+  background: #181818;
+  border-bottom: 2px solid #2a2a2a;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.force-graph-title {
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #555;
+}
+#force-canvas {
+  display: block;
+  width: 100%;
+  height: 280px;
+  background: #0a0a0a;
+}
+.interaction-ledger {
+  background: var(--white);
+  border: var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.ledger-title-bar {
+  background: var(--black);
+  color: var(--white);
+  padding: 9px 14px;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.ledger-entries {
+  padding: 12px 14px;
+  max-height: 140px;
+  overflow-y: auto;
+  font-size: 0.58rem;
+  line-height: 1.8;
+  color: #888;
+}
+.ledger-entry {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+.ledger-entry:last-child { border-bottom: none; }
+.ledger-from { color: var(--accent); font-weight: 700; min-width: 60px; }
+.ledger-arrow { color: #ccc; }
+.ledger-to { color: var(--trust); font-weight: 700; min-width: 60px; }
+.ledger-count { margin-left: auto; color: #ccc; }
+
+/* ═══════════════════════════════════════════════
+   STATE 4: DASHBOARD — TWO COLUMN
+═══════════════════════════════════════════════ */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.dash-left {}
+.dash-right {}
+
+/* Verdict topbar — full width */
+.verdict-topbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+.verdict-heading {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.verdict-meta { font-size: 0.62rem; color: #888; margin-top: 8px; letter-spacing: 0.05em; }
+.go-badge {
+  padding: 14px 24px;
+  border: var(--border);
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 900;
+  text-align: center;
+  min-width: 130px;
+  box-shadow: var(--shadow-lg);
+}
+.go-badge.go { background: var(--trust); color: var(--white); }
+.go-badge.nogo { background: var(--risk); color: var(--white); }
+.go-badge .go-sub {
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  font-weight: 400;
+  display: block;
+  margin-top: 5px;
+  opacity: 0.9;
+}
+.confidence-bar {
+  height: 6px;
+  background: #eee;
+  border: 1.5px solid #bbb;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.confidence-fill {
+  height: 100%;
+  background: var(--trust);
+  transition: width 1s ease;
+}
+
+/* Reasoning */
+.reasoning-block {
+  background: #fafafa;
+  border-left: 5px solid var(--accent);
+  padding: 16px 18px;
+  font-size: 0.65rem;
+  line-height: 1.75;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+.reasoning-block strong { color: var(--text-primary); }
+
+/* Panel labels */
+.v-panel {
+  border: var(--border);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  background: var(--white);
+  margin-bottom: 14px;
+}
+.v-panel-head {
+  background: var(--black);
+  color: var(--white);
+  padding: 9px 14px;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel-tag {
+  background: var(--accent);
+  color: var(--white);
+  font-size: 0.48rem;
+  padding: 2px 7px;
+  letter-spacing: 0.1em;
+}
+.v-panel-body { padding: 16px; }
+
+/* Ledger */
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 0.72rem;
+}
+.ledger-row:last-child { border-bottom: none; }
+.ledger-row.total-row {
+  border-top: 2px solid var(--black);
+  border-bottom: none;
+  font-weight: 700;
+  padding-top: 10px;
+  margin-top: 4px;
+}
+.ledger-label { color: var(--text-secondary); }
+.ledger-val { font-weight: 700; }
+.ledger-val.negative { color: var(--risk); }
+.ledger-val.total-final { font-size: 0.9rem; color: var(--black); }
+
+/* EMI stats */
+.stat-block { display: flex; flex-direction: column; gap: 10px; }
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.7rem;
+  padding: 7px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-label { color: var(--text-secondary); }
+.stat-val { font-weight: 700; }
+.stat-val.warn { color: var(--risk); }
+.stat-val.safe { color: var(--safe); }
+.stat-val.ok { color: var(--trust); }
+.affordability-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 2px solid;
+  margin-top: 6px;
+}
+.affordability-badge.affordable { background: #dcfce7; color: var(--safe); border-color: var(--safe); }
+.affordability-badge.stretched { background: #fef9c3; color: #854d0e; border-color: #854d0e; }
+.affordability-badge.unaffordable { background: #fee2e2; color: var(--risk); border-color: var(--risk); }
+
+/* Risk score */
+.risk-score-display {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 900;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.risk-score-display.low { color: var(--safe); }
+.risk-score-display.medium { color: #b45309; }
+.risk-score-display.high { color: var(--risk); }
+.risk-label-badge {
+  display: inline-block;
+  padding: 4px 14px;
+  border: 2px solid;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin-bottom: 12px;
+}
+.risk-label-badge.low { color: var(--safe); border-color: var(--safe); background: #f0fdf4; }
+.risk-label-badge.medium { color: #92400e; border-color: #92400e; background: #fffbeb; }
+.risk-label-badge.high { color: var(--risk); border-color: var(--risk); background: #fef2f2; }
+.risk-factor-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.62rem;
+  padding: 5px 0;
+  line-height: 1.4;
+}
+.rf-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.rf-dot.triggered { background: var(--risk); }
+.rf-dot.clear { background: var(--safe); }
+
+/* Scenarios */
+.scenario-card {
+  border: 1.5px solid #ddd;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: var(--bg);
+}
+.scenario-card.critical { border-color: var(--risk); background: #fff8f8; }
+.scenario-card.moderate { border-color: #b45309; background: #fffbf5; }
+.scenario-card.safe { border-color: var(--safe); background: #f0fdf4; }
+.scenario-title { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+.scenario-desc { font-size: 0.6rem; color: var(--text-secondary); line-height: 1.5; }
+.scenario-badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.s-badge { font-size: 0.5rem; padding: 3px 8px; border: 1.5px solid #ccc; letter-spacing: 0.06em; }
+
+/* ═══════════════════════════════════════════════
+   CHARTS
+═══════════════════════════════════════════════ */
+.chart-panel {
+  border: var(--border);
+  box-shadow: var(--shadow);
+  background: var(--white);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.chart-panel-head {
+  background: var(--black);
+  color: var(--white);
+  padding: 9px 14px;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.chart-tag {
+  background: var(--trust);
+  color: var(--white);
+  font-size: 0.48rem;
+  padding: 2px 7px;
+  letter-spacing: 0.1em;
+}
+.chart-body { padding: 16px; }
+.chart-canvas-wrap {
+  position: relative;
+  width: 100%;
+}
+.chart-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.55rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #666;
+}
+.legend-dot {
+  width: 8px; height: 8px;
+  border-radius: 0;
+  flex-shrink: 0;
+}
+
+/* Side-by-side charts */
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* ═══════════════════════════════════════════════
+   CONVERSATION
+═══════════════════════════════════════════════ */
+.conv-panel {
+  border: var(--border);
+  box-shadow: var(--shadow);
+  background: var(--white);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.conv-panel-head {
+  background: var(--black);
+  color: var(--white);
+  padding: 9px 14px;
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.conv-messages {
+  padding: 14px;
+  min-height: 120px;
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scroll-behavior: smooth;
+}
+.conv-messages::-webkit-scrollbar { width: 4px; }
+.conv-messages::-webkit-scrollbar-thumb { background: #ddd; }
+.conv-msg { font-size: 0.65rem; line-height: 1.6; }
+.conv-bubble {
+  display: inline-block;
+  padding: 8px 14px;
+  max-width: 85%;
+  border: 1.5px solid;
+  font-size: 0.63rem;
+  line-height: 1.6;
+}
+.conv-msg.user { text-align: right; }
+.conv-msg.user .conv-bubble {
+  background: var(--black);
+  color: var(--white);
+  border-color: var(--black);
+}
+.conv-msg.ai .conv-bubble {
+  background: var(--bg);
+  border-color: #bbb;
+  color: var(--text-primary);
+}
+.conv-msg.ai .conv-sender {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 3px;
+  display: block;
+}
+.conv-input-row {
+  display: flex;
+  border-top: var(--border);
+}
+.conv-input {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 12px 16px;
+  border: none;
+  background: var(--bg);
+  outline: none;
+  color: var(--text-primary);
+}
+.conv-send {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 12px 18px;
+  border: none;
+  border-left: var(--border);
+  background: var(--accent);
+  color: var(--white);
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+.conv-send:hover { background: #92400e; }
+.conv-send:disabled { background: #888; cursor: wait; }
+
+/* ═══════════════════════════════════════════════
+   REPORT DOWNLOAD & FIDUCIARY NOTE
+═══════════════════════════════════════════════ */
+.report-download-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border: var(--border);
+  background: var(--white);
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  gap: 16px;
+}
+.report-info { flex: 1; }
+.report-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.report-sub { font-size: 0.58rem; color: #888; margin-top: 3px; }
+.btn-download {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 10px 20px;
+  border: var(--border);
+  background: var(--safe);
+  color: var(--white);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.08s, box-shadow 0.08s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-download:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 #111; }
+.btn-download.loading-report { background: #888; cursor: wait; }
+.fiduciary-note {
+  border: 2px solid #ccc;
+  padding: 14px 18px;
+  font-size: 0.6rem;
+  line-height: 1.7;
+  color: #888;
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.fiduciary-note strong { color: var(--text-secondary); }
+
+/* ═══════════════════════════════════════════════
+   DEBUG PANEL
+═══════════════════════════════════════════════ */
+#debug-toggle {
+  position: fixed;
+  bottom: 60px;
+  right: 0;
+  background: #1a1a1a;
+  color: #555;
+  border: 1.5px solid #333;
+  border-right: none;
+  font-family: var(--font-mono);
+  font-size: 0.48rem;
+  letter-spacing: 0.12em;
+  padding: 8px 6px;
+  cursor: pointer;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  z-index: 500;
+  transition: color 0.1s, background 0.1s;
+}
+#debug-toggle:hover { color: var(--accent); background: #111; }
+#debug-panel {
+  position: fixed;
+  bottom: 40px;
+  right: 0;
+  width: 340px;
+  background: #0a0a0a;
+  border: var(--border);
+  border-right: none;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  z-index: 499;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+#debug-panel.open { transform: translateX(0); }
+.debug-panel-head {
+  background: #141414;
+  border-bottom: 1px solid #222;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.debug-panel-title {
+  font-size: 0.55rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.debug-clear {
+  font-family: var(--font-mono);
+  font-size: 0.48rem;
+  color: #444;
+  background: none;
+  border: 1px solid #333;
+  padding: 2px 8px;
+  cursor: pointer;
+  letter-spacing: 0.08em;
+}
+.debug-clear:hover { color: #888; }
+.debug-log {
+  padding: 8px 14px;
+  overflow-y: auto;
+  flex: 1;
+}
+.debug-log::-webkit-scrollbar { width: 3px; }
+.debug-log::-webkit-scrollbar-thumb { background: #222; }
+.debug-entry {
+  font-size: 0.55rem;
+  color: #666;
+  padding: 5px 0;
+  border-bottom: 1px solid #1a1a1a;
+  line-height: 1.5;
+  font-family: var(--font-mono);
+}
+.debug-entry:last-child { border-bottom: none; }
+.debug-entry .d-method { color: #fbbf24; font-weight: 700; margin-right: 6px; }
+.debug-entry .d-path { color: #60a5fa; }
+.debug-entry .d-status.ok { color: #22c55e; }
+.debug-entry .d-status.err { color: #f87171; }
+.debug-entry .d-ts { color: #444; font-size: 0.5rem; display: block; margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════
+   LOADING OVERLAY
+═══════════════════════════════════════════════ */
+#loading-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.82);
+  z-index: 9998;
+  place-items: center;
+}
+#loading-overlay.show { display: grid; }
+.loading-box {
+  border: var(--border);
+  background: var(--white);
+  padding: 44px 52px;
+  text-align: center;
+  box-shadow: 8px 8px 0 var(--accent);
+  min-width: 280px;
+}
+.loading-spinner {
+  width: 44px; height: 44px;
+  border: 4px solid #eee;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.loading-sub { font-size: 0.58rem; color: #888; letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* Full-width bottom row on dashboard */
+.dash-full { margin-bottom: 14px; }
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════ */
+@media(max-width: 900px) {
+  .rt-grid { grid-template-columns: 1fr; }
+  .dash-grid { grid-template-columns: 1fr; }
+  .chart-row { grid-template-columns: 1fr; }
+}
+@media(max-width: 640px) {
+  .choice-grid { grid-template-columns: 1fr; }
+  .form-grid-2col, .form-grid-3col { grid-template-columns: 1fr; }
+  .form-field.span2, .form-field.span3 { grid-column: span 1; }
+  .agent-grid { grid-template-columns: repeat(2,1fr); }
+  #top-bar .center-tag { display: none; }
+  .card { padding: 24px 18px; }
+  .verdict-topbar { grid-template-columns: 1fr; }
+  .stepper .step-label { display: none; }
+  #debug-panel { width: 280px; }
+}
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header id="top-bar" role="banner">
+  <div class="logo">
+    NIV<span style="color:#fff"> AI</span>
+    <span class="logo-tag">FIDUCIARY</span>
+  </div>
+  <div class="center-tag">Deterministic Decision Intelligence — India Real Estate</div>
+  <div class="nav-controls">
+    <span id="session-badge"></span>
+    <button class="nav-btn" id="btn-back" onclick="goBack()" disabled aria-label="Go back to previous step">← Back</button>
+    <button class="nav-btn danger" id="btn-reset" onclick="resetSystem()" disabled aria-label="Reset system and start over">↺ Reset</button>
+  </div>
+</header>
+
+<!-- MAIN CANVAS -->
+<main id="canvas" role="main">
+
+  <!-- ══════════════════════ STATE 0: LOGIN -->
+  <section id="state-0" class="state active" role="region" aria-label="System Login">
+    <div style="max-width:460px;margin:0 auto">
+    <div class="login-card">
+      <div class="niv-logo-block">NIV<sup>AI</sup></div>
+      <p class="login-tagline">Secure Fiduciary Access — India Real Estate</p>
+      <p class="login-desc">
+        AI-powered decision intelligence that surfaces hidden transaction costs, detects behavioral biases, and applies RBI compliance constraints before you commit capital to Indian real estate.
+      </p>
+      <div class="trust-badges">
+        <div class="trust-badge">RBI Compliant</div>
+        <div class="trust-badge">RERA Framework</div>
+        <div class="trust-badge">Bias-Aware Engine</div>
+        <div class="trust-badge">Multi-Agent Analysis</div>
+        <div class="trust-badge">AES-256 Session</div>
+      </div>
+      <button class="btn btn-trust" id="btn-enter" onclick="startSession()" aria-label="Initialize fiduciary session">
+        ⟶ Initialize Fiduciary Session
+      </button>
+      <p class="api-note">Connects to NIV AI FastAPI backend — session isolated and ephemeral</p>
+    </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════ STATE 1: BEHAVIORAL -->
+  <section id="state-1" class="state" role="region" aria-label="Behavioral Assessment">
+    <div class="card">
+      <div id="stepper-1"></div>
+      <div class="card-header">
+        <div class="section-label">Step 02 / 05 — Behavioral Profiling</div>
+        <h2 class="card-title">Investor Behavior<br>Calibration</h2>
+        <p class="card-sub">Your response feeds the bias detection engine. Honest answers produce more accurate risk modeling.</p>
+      </div>
+      <div class="scenario-box">
+        <strong>⚠ LIVE MARKET SCENARIO:</strong><br>
+        Property prices in your target area have risen 15% in the last 3 months. Inventory is shrinking. Your broker calls daily. What is your instinctive response?
+      </div>
+      <div class="choice-grid" role="group" aria-label="Select behavioral response">
+        <button class="choice-btn fomo-btn" onclick="submitBehavioral('buy_immediately')" aria-label="Buy immediately — FOMO signal">
+          <span class="choice-icon">🔥</span>
+          <span class="choice-label">Buy Immediately</span>
+          <span class="choice-desc">Act before prices rise further. Early entry protects against further appreciation. Hesitation is costly.</span>
+          <span class="choice-signal">→ FOMO Signal Detected</span>
+        </button>
+        <button class="choice-btn rational-btn" onclick="submitBehavioral('wait_and_analyze')" aria-label="Wait and analyze — rational signal">
+          <span class="choice-icon">🔍</span>
+          <span class="choice-label">Wait &amp; Analyze</span>
+          <span class="choice-desc">Run numbers. Verify fundamentals. Market cycles correct. Diligence before capital commitment.</span>
+          <span class="choice-signal">→ Rational Signal Confirmed</span>
+        </button>
+      </div>
+      <div class="bias-note">
+        🧠 BIAS DETECTION ACTIVE — This response calibrates your behavioral risk premium in the composite score
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════ STATE 2: INPUT ENGINE -->
+  <section id="state-2" class="state" role="region" aria-label="Financial Input Engine">
+    <div class="card">
+      <div id="stepper-2"></div>
+      <div class="card-header">
+        <div class="section-label">Step 03 / 05 — Financial Parameters</div>
+        <h2 class="card-title">Input Engine</h2>
+        <p class="card-sub">All 10 parameters required. Drives live EMI modeling, hidden cost projection, and multi-scenario stress analysis.</p>
+      </div>
+      <hr class="divider">
+
+      <div class="form-section-label">📊 Income &amp; Expense Profile</div>
+      <div class="form-grid-3col">
+        <div class="form-field">
+          <label for="f-income">Monthly Income (₹)<span class="req">*</span></label>
+          <input type="number" id="f-income" placeholder="e.g. 150000" min="1" step="1000" aria-label="Monthly net income in rupees">
+          <div class="hint">Post-tax take-home</div>
+        </div>
+        <div class="form-field">
+          <label for="f-expenses">Monthly Expenses (₹)<span class="req">*</span></label>
+          <input type="number" id="f-expenses" placeholder="e.g. 60000" min="0" step="1000" aria-label="Monthly expenses in rupees">
+          <div class="hint">Excluding any EMI</div>
+        </div>
+        <div class="form-field">
+          <label for="f-savings">Total Savings (₹)<span class="req">*</span></label>
+          <input type="number" id="f-savings" placeholder="e.g. 2000000" min="0" step="10000" aria-label="Total savings in rupees">
+          <div class="hint">Liquid + investable</div>
+        </div>
+      </div>
+
+      <div class="form-section-label">🏠 Property Details</div>
+      <div class="form-grid-2col">
+        <div class="form-field">
+          <label for="f-price">Property Price (₹)<span class="req">*</span></label>
+          <input type="number" id="f-price" placeholder="e.g. 8500000" min="100000" step="50000" aria-label="Property base price in rupees">
+          <div class="hint">Base agreement value (excl. taxes)</div>
+        </div>
+        <div class="form-field">
+          <label for="f-down">Down Payment (₹)<span class="req">*</span></label>
+          <input type="number" id="f-down" placeholder="e.g. 1700000" min="0" step="10000" aria-label="Down payment amount in rupees">
+          <div class="hint">Min 20% recommended (RBI)</div>
+        </div>
+        <div class="form-field">
+          <label for="f-state">State / UT<span class="req">*</span></label>
+          <select id="f-state" aria-label="Select Indian state for applicable stamp duty rates">
+            <option value="">— Select State —</option>
+            <option value="Maharashtra">Maharashtra — 5.0%</option>
+            <option value="Karnataka">Karnataka — 5.6%</option>
+            <option value="Delhi">Delhi — 6.0%</option>
+            <option value="Tamil Nadu">Tamil Nadu — 7.0%</option>
+            <option value="Telangana">Telangana — 6.0%</option>
+            <option value="Gujarat">Gujarat — 4.9%</option>
+            <option value="Rajasthan">Rajasthan — 6.0%</option>
+            <option value="West Bengal">West Bengal — 6.0%</option>
+            <option value="Uttar Pradesh">Uttar Pradesh — 7.0%</option>
+            <option value="Punjab">Punjab — 6.0%</option>
+            <option value="Haryana">Haryana — 7.0%</option>
+            <option value="Kerala">Kerala — 8.0%</option>
+            <option value="Andhra Pradesh">Andhra Pradesh — 5.0%</option>
+            <option value="Madhya Pradesh">Madhya Pradesh — 5.0%</option>
+          </select>
+          <div class="hint">Determines stamp duty liability</div>
+        </div>
+        <div class="form-field">
+          <label for="f-ptype">Property Type<span class="req">*</span></label>
+          <select id="f-ptype" aria-label="Select property type">
+            <option value="">— Select Type —</option>
+            <option value="under_construction">Under Construction (GST: 5%)</option>
+            <option value="ready_to_move">Ready to Move (No GST)</option>
+            <option value="resale">Resale (No GST)</option>
+            <option value="plot">Plot / Land</option>
+          </select>
+          <div class="hint">Affects GST applicability</div>
+        </div>
+      </div>
+
+      <div class="form-section-label">📋 Loan Parameters</div>
+      <div class="form-grid-3col">
+        <div class="form-field">
+          <label for="f-tenure">Loan Tenure (Years)<span class="req">*</span></label>
+          <input type="number" id="f-tenure" placeholder="e.g. 20" min="1" max="30" step="1" aria-label="Loan tenure in years">
+          <div class="hint">5–30 years (RBI max)</div>
+        </div>
+        <div class="form-field">
+          <label for="f-rate">Interest Rate (% p.a.)<span class="req">*</span></label>
+          <input type="number" id="f-rate" placeholder="e.g. 8.75" min="1" max="25" step="0.05" aria-label="Annual interest rate percentage">
+          <div class="hint">Current SBI HLR: 8.50–9.15%</div>
+        </div>
+        <div class="form-field">
+          <label for="f-age">Your Age<span class="req">*</span></label>
+          <input type="number" id="f-age" placeholder="e.g. 34" min="18" max="65" step="1" aria-label="Your current age">
+          <div class="hint">Affects loan eligibility horizon</div>
+        </div>
+      </div>
+
+      <hr class="divider">
+      <button class="btn btn-accent" id="btn-analyze" onclick="submitAnalysis()" aria-label="Submit parameters and run multi-agent financial analysis">
+        ⟶ Run Multi-Agent Analysis
+      </button>
+    </div>
+  </section>
+
+  <!-- ══════════════════════ STATE 3: ROUNDTABLE (TWO-COLUMN) -->
+  <section id="state-3" class="state wide" role="region" aria-label="Multi-Agent Roundtable Analysis">
+    <div style="width:100%">
+      <div id="stepper-3"></div>
+      <div class="rt-header">
+        <div class="section-label">Step 04 / 05 — Multi-Agent Processing</div>
+        <div class="rt-title">Agent Roundtable</div>
+        <p style="font-size:0.62rem;color:#888;margin-top:4px">Parallel deterministic analysis in progress. WebSocket stream active.</p>
+      </div>
+
+      <div class="rt-grid">
+        <!-- LEFT: Terminal + Agent Cards -->
+        <div class="rt-left">
+          <div class="ws-status" id="ws-status">
+            <div class="ws-dot" id="ws-dot"></div>
+            <span id="ws-label">Connecting to analysis engine...</span>
+          </div>
+          <div class="agent-grid">
+            <div class="agent-card" id="ac-math">
+              <div class="agent-icon">🔢</div>
+              <div class="agent-name">Math Agent</div>
+              <div class="agent-status" id="as-math">Standby</div>
+            </div>
+            <div class="agent-card" id="ac-bias">
+              <div class="agent-icon">🧠</div>
+              <div class="agent-name">Bias Agent</div>
+              <div class="agent-status" id="as-bias">Standby</div>
+            </div>
+            <div class="agent-card" id="ac-reg">
+              <div class="agent-icon">⚖️</div>
+              <div class="agent-name">Reg Agent</div>
+              <div class="agent-status" id="as-reg">Standby</div>
+            </div>
+            <div class="agent-card" id="ac-risk">
+              <div class="agent-icon">📊</div>
+              <div class="agent-name">Risk Agent</div>
+              <div class="agent-status" id="as-risk">Standby</div>
+            </div>
+          </div>
+          <div class="terminal">
+            <div class="terminal-header">
+              <div class="terminal-dots">
+                <div class="t-dot t-red"></div>
+                <div class="t-dot t-yellow"></div>
+                <div class="t-dot t-green"></div>
+              </div>
+              <div class="terminal-title">NIV-AI // ROUNDTABLE ENGINE v2.0</div>
+              <div style="font-size:0.5rem;color:#444;letter-spacing:0.1em" id="terminal-round">ROUND —</div>
+            </div>
+            <div class="terminal-body" id="terminal-body">
+              <span class="cursor-blink" id="cursor"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: Force Graph + Interaction Ledger -->
+        <div class="rt-right">
+          <div class="force-graph-container">
+            <div class="force-graph-header">
+              <div class="terminal-dots">
+                <div class="t-dot t-red"></div>
+                <div class="t-dot t-yellow"></div>
+                <div class="t-dot t-green"></div>
+              </div>
+              <div class="force-graph-title">Live Interaction Graph — Agent Communication</div>
+              <div style="font-size:0.48rem;color:#444;letter-spacing:0.1em" id="graph-round-label">INITIALIZING</div>
+            </div>
+            <canvas id="force-canvas" aria-label="Live agent interaction force graph"></canvas>
+          </div>
+          <div class="interaction-ledger">
+            <div class="ledger-title-bar">Interaction Log — Communication Pairs</div>
+            <div class="ledger-entries" id="interaction-ledger-body">
+              <div style="color:#444;font-size:0.58rem">Waiting for agent communication...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════════════ STATE 4: VERDICT DASHBOARD (TWO-COLUMN) -->
+  <section id="state-4" class="state wide" role="region" aria-label="Verdict Dashboard">
+
+    <!-- Full-width verdict topbar -->
+    <div class="dash-full">
+      <div class="verdict-topbar">
+        <div>
+          <div class="section-label">Step 05 / 05 — Fiduciary Verdict</div>
+          <h2 class="verdict-heading">Decision Analysis<br>Report</h2>
+          <p class="verdict-meta" id="v-meta">Session ID: — | Generated: —</p>
+        </div>
+        <div>
+          <div class="go-badge" id="v-go-badge">—</div>
+          <div style="font-size:0.55rem;color:#888;margin-top:6px;text-align:center">
+            Confidence: <strong id="v-confidence">—</strong>
+          </div>
+          <div class="confidence-bar"><div class="confidence-fill" id="v-conf-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="reasoning-block" id="v-reasoning">
+        <strong>Analysis Summary:</strong> Awaiting backend response...
+      </div>
+    </div>
+
+    <!-- Two-column dashboard -->
+    <div class="dash-grid">
+
+      <!-- LEFT COLUMN: Financial data panels + Conversation -->
+      <div class="dash-left">
+
+        <!-- Financial Reality -->
+        <div class="v-panel">
+          <div class="v-panel-head">Financial Reality <span class="panel-tag">EMI ANALYSIS</span></div>
+          <div class="v-panel-body">
+            <div class="stat-block">
+              <div class="stat-row"><span class="stat-label">Monthly EMI</span><span class="stat-val" id="v-emi">—</span></div>
+              <div class="stat-row"><span class="stat-label">EMI / Income Ratio</span><span class="stat-val" id="v-emi-ratio">—</span></div>
+              <div class="stat-row"><span class="stat-label">Monthly Surplus</span><span class="stat-val" id="v-surplus">—</span></div>
+              <div class="stat-row"><span class="stat-label">Loan Amount</span><span class="stat-val" id="v-loan">—</span></div>
+            </div>
+            <div id="v-afford-badge" style="margin-top:8px"></div>
+          </div>
+        </div>
+
+        <!-- Hidden Costs -->
+        <div class="v-panel">
+          <div class="v-panel-head">Hidden Cost Breakdown <span class="panel-tag">TRUE COST</span></div>
+          <div class="v-panel-body">
+            <div class="ledger-row"><span class="ledger-label">Base Price</span><span class="ledger-val" id="v-base">—</span></div>
+            <div class="ledger-row"><span class="ledger-label">GST</span><span class="ledger-val negative" id="v-gst">—</span></div>
+            <div class="ledger-row"><span class="ledger-label">Stamp Duty</span><span class="ledger-val negative" id="v-stamp">—</span></div>
+            <div class="ledger-row"><span class="ledger-label">Registration</span><span class="ledger-val negative" id="v-reg">—</span></div>
+            <div class="ledger-row total-row"><span class="ledger-label">Total Acquisition Cost</span><span class="ledger-val total-final" id="v-total">—</span></div>
+          </div>
+        </div>
+
+        <!-- Risk Score -->
+        <div class="v-panel">
+          <div class="v-panel-head">Composite Risk Score <span class="panel-tag">RISK ENGINE</span></div>
+          <div class="v-panel-body">
+            <div class="risk-score-display" id="v-risk-score">—</div>
+            <div id="v-risk-label"></div>
+            <div style="margin-top:12px" id="v-risk-factors"></div>
+          </div>
+        </div>
+
+        <!-- Scenario simulation (compact) -->
+        <div class="v-panel">
+          <div class="v-panel-head">Scenario Simulation <span class="panel-tag">STRESS TEST</span></div>
+          <div class="v-panel-body" id="v-scenarios" style="max-height:180px;overflow-y:auto">
+            <div style="font-size:0.65rem;color:#888">Loading scenarios...</div>
+          </div>
+        </div>
+
+        <!-- Conversation Interface -->
+        <div class="conv-panel">
+          <div class="conv-panel-head">
+            Ask NIV AI
+            <span class="panel-tag" style="background:var(--safe)">LIVE AI</span>
+          </div>
+          <div class="conv-messages" id="conv-messages">
+            <div class="conv-msg ai">
+              <span class="conv-sender">NIV AI</span>
+              <span class="conv-bubble">Analysis complete. Ask me anything about this property decision — EMI scenarios, alternative strategies, or hidden risks I've identified.</span>
+            </div>
+          </div>
+          <div class="conv-input-row">
+            <input type="text" class="conv-input" id="conv-input" placeholder="e.g. What if I increase the down payment by 20%?" aria-label="Ask NIV AI a follow-up question" onkeydown="if(event.key==='Enter')sendConversation()">
+            <button class="conv-send" id="conv-send-btn" onclick="sendConversation()" aria-label="Send question to NIV AI">⟶ Ask</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Charts -->
+      <div class="dash-right">
+
+        <!-- Cash Flow Chart -->
+        <div class="chart-panel">
+          <div class="chart-panel-head">
+            Cash Flow Projection — 12 Months
+            <span class="chart-tag">AFFORDABILITY</span>
+          </div>
+          <div class="chart-body">
+            <div class="chart-canvas-wrap">
+              <canvas id="chart-cashflow" height="180" aria-label="Cash flow projection chart"></canvas>
+            </div>
+            <div class="chart-legend">
+              <div class="legend-item"><div class="legend-dot" style="background:#1e3a8a"></div>Income</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#991b1b"></div>EMI + Expenses</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#065f46;border:2px dashed #065f46;background:none;width:16px;height:3px"></div>Surplus</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- EMI Gauge + Cost Donut (side by side) -->
+        <div class="chart-row">
+          <div class="chart-panel">
+            <div class="chart-panel-head">
+              EMI Burden
+              <span class="chart-tag">RBI LIMIT</span>
+            </div>
+            <div class="chart-body" style="text-align:center">
+              <canvas id="chart-gauge" width="200" height="120" aria-label="EMI burden gauge"></canvas>
+              <div id="gauge-label" style="font-size:0.6rem;color:#888;margin-top:4px;letter-spacing:0.08em">—</div>
+            </div>
+          </div>
+          <div class="chart-panel">
+            <div class="chart-panel-head">
+              Cost Breakdown
+              <span class="chart-tag">TRUE COST</span>
+            </div>
+            <div class="chart-body" style="text-align:center">
+              <canvas id="chart-donut" width="200" height="120" aria-label="Cost breakdown donut chart"></canvas>
+              <div id="donut-legend" style="margin-top:8px"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scenario Comparison Bars -->
+        <div class="chart-panel">
+          <div class="chart-panel-head">
+            Stress-Test Scenarios — Buffer Months
+            <span class="chart-tag">SURVIVABILITY</span>
+          </div>
+          <div class="chart-body">
+            <canvas id="chart-scenarios" height="130" aria-label="Scenario comparison chart"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Full-width bottom row -->
+    <div class="dash-full">
+      <div class="report-download-bar">
+        <div class="report-info">
+          <div class="report-title">📄 Full Fiduciary Report</div>
+          <div class="report-sub" id="v-report-sub">PDF report — session data included</div>
+        </div>
+        <button class="btn-download" id="btn-download-report" onclick="downloadReport()" aria-label="Download full fiduciary analysis report">
+          ↓ Download Report
+        </button>
+      </div>
+      <div class="fiduciary-note">
+        <span>⚖️</span>
+        <span><strong>Fiduciary Disclosure:</strong> This analysis is generated by a deterministic AI engine using data you provided. It does not constitute financial advice. Consult a SEBI-registered financial advisor before executing any real estate transaction. NIV AI applies RBI household finance guidelines but cannot account for individual credit history, employment stability, or local market microstructure.</span>
+      </div>
+      <button class="btn btn-outline" onclick="resetSystem()" aria-label="Start a new analysis session" style="margin-bottom:20px">
+        ↺ Start New Analysis
+      </button>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- BOTTOM BAR -->
+<footer id="bottom-bar" role="contentinfo">
+  <span>NIV AI © 2025 — Fiduciary Engine v2.0</span>
+  <span id="state-label">SYSTEM BOOT</span>
+  <div class="status-live">
+    <div class="status-dot"></div>
+    <span>LIVE</span>
+  </div>
+</footer>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay" role="status" aria-live="polite" aria-label="Processing">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loading-msg">Initializing Session</div>
+    <div class="loading-sub" id="loading-sub">Connecting to backend...</div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" role="alert" aria-live="assertive"></div>
+
+<!-- DEBUG PANEL -->
+<button id="debug-toggle" onclick="toggleDebug()" aria-label="Toggle debug panel">DEBUG</button>
+<div id="debug-panel" aria-label="API Debug Panel">
+  <div class="debug-panel-head">
+    <div class="debug-panel-title">API Debug Log</div>
+    <button class="debug-clear" onclick="clearDebug()">Clear</button>
+  </div>
+  <div class="debug-log" id="debug-log">
+    <div class="debug-entry" style="color:#333">No requests yet — system boot</div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+// 1. CONFIGURATION
+// ════════════════════════════════════════════════════
+const API_BASE  = 'http://localhost:8000';
+const WS_BASE   = 'ws://localhost:8000';
+const AUTH_TOKEN = 'niv-placeholder-token-2025';
+
+const STATES = { LOGIN: 0, BEHAVIORAL: 1, INPUT: 2, LOADING: 3, DASHBOARD: 4 };
+const STATE_LABELS = {
+  0: 'SECURE LOGIN',
+  1: 'BEHAVIORAL PROFILING',
+  2: 'INPUT ENGINE',
+  3: 'AGENT ROUNDTABLE',
+  4: 'VERDICT DASHBOARD'
+};
+
+// ════════════════════════════════════════════════════
+// 2. GLOBAL STATE
+// ════════════════════════════════════════════════════
+let currentState     = STATES.LOGIN;
+let stateHistory     = [];
+let session_id       = null;
+let behavioralAnswers = null;
+let userInput        = null;
+let backendResults   = null;
+let wsConnection     = null;
+let isSubmitting     = false;
+let forceAnimFrame   = null;
+let debugOpen        = false;
+
+// ════════════════════════════════════════════════════
+// 3. UTILITIES
+// ════════════════════════════════════════════════════
+function fmt(n) {
+  if (n === undefined || n === null || n === '') return '—';
+  const num = parseFloat(n);
+  if (isNaN(num)) return String(n);
+  return '₹' + Math.round(num).toLocaleString('en-IN');
+}
+function showToast(msg, duration = 3800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+function showLoading(msg = 'Processing', sub = 'Please wait...') {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading-sub').textContent = sub;
+  document.getElementById('loading-overlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.remove('show');
+}
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AUTH_TOKEN}` };
+}
+
+// ════════════════════════════════════════════════════
+// 4. DEBUG PANEL
+// ════════════════════════════════════════════════════
+function toggleDebug() {
+  debugOpen = !debugOpen;
+  document.getElementById('debug-panel').classList.toggle('open', debugOpen);
+}
+function clearDebug() {
+  document.getElementById('debug-log').innerHTML = '<div class="debug-entry" style="color:#333">Log cleared</div>';
+}
+function logDebug(method, path, status, ok = true) {
+  const log = document.getElementById('debug-log');
+  const ts = new Date().toTimeString().slice(0,8);
+  const entry = document.createElement('div');
+  entry.className = 'debug-entry';
+  entry.innerHTML = `
+    <span class="d-method">${method}</span>
+    <span class="d-path">${path}</span>
+    <span class="d-status ${ok ? 'ok' : 'err'}">${status}</span>
+    <span class="d-ts">${ts}</span>
+  `;
+  // Remove placeholder
+  const placeholder = log.querySelector('[style*="color:#333"]');
+  if (placeholder) placeholder.remove();
+  log.insertBefore(entry, log.firstChild);
+}
+
+// ════════════════════════════════════════════════════
+// 5. STATE MACHINE
+// ════════════════════════════════════════════════════
+function transitionTo(newState) {
+  if (newState !== currentState) stateHistory.push(currentState);
+  currentState = newState;
+
+  document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
+  document.getElementById(`state-${newState}`).classList.add('active');
+  document.getElementById('state-label').textContent = STATE_LABELS[newState] || 'UNKNOWN';
+
+  renderStepper(newState);
+
+  document.getElementById('btn-back').disabled = (stateHistory.length === 0 || newState === STATES.LOGIN || newState === STATES.LOADING);
+  document.getElementById('btn-reset').disabled = (newState === STATES.LOGIN);
+
+  const badge = document.getElementById('session-badge');
+  if (session_id) {
+    badge.textContent = `SID: ${session_id.slice(0,8)}...`;
+    badge.classList.add('visible');
+  } else {
+    badge.classList.remove('visible');
+  }
+
+  // Start/stop force graph animation
+  if (newState === STATES.LOADING) {
+    initForceGraph();
+  } else {
+    stopForceGraph();
+  }
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goBack() {
+  if (stateHistory.length === 0) return;
+  if (wsConnection) { wsConnection.close(); wsConnection = null; }
+  stopForceGraph();
+  const prev = stateHistory.pop();
+  currentState = prev;
+  document.querySelectorAll('.state').forEach(el => el.classList.remove('active'));
+  document.getElementById(`state-${prev}`).classList.add('active');
+  document.getElementById('state-label').textContent = STATE_LABELS[prev] || 'UNKNOWN';
+  renderStepper(prev);
+  document.getElementById('btn-back').disabled = (stateHistory.length === 0 || prev === STATES.LOGIN || prev === STATES.LOADING);
+  document.getElementById('btn-reset').disabled = (prev === STATES.LOGIN);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function resetSystem() {
+  if (wsConnection) { wsConnection.close(); wsConnection = null; }
+  stopForceGraph();
+  session_id = null;
+  behavioralAnswers = null;
+  userInput = null;
+  backendResults = null;
+  isSubmitting = false;
+  stateHistory = [];
+  ['f-income','f-expenses','f-savings','f-price','f-down','f-tenure','f-rate','f-age'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['f-state','f-ptype'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('session-badge').classList.remove('visible');
+  hideLoading();
+  transitionTo(STATES.LOGIN);
+}
+
+// ════════════════════════════════════════════════════
+// 6. STEPPER
+// ════════════════════════════════════════════════════
+const STEP_DEFS = [
+  { label: 'Login' }, { label: 'Behavior' }, { label: 'Input' }, { label: 'Analysis' }, { label: 'Verdict' }
+];
+
+function renderStepper(activeState) {
+  [1, 2, 3].forEach(stateNum => {
+    const el = document.getElementById(`stepper-${stateNum}`);
+    if (!el) return;
+    let html = '<div class="stepper">';
+    STEP_DEFS.forEach((step, i) => {
+      const isDone = i < activeState;
+      const isCurrent = i === activeState;
+      html += `<div class="step ${isDone ? 'done' : ''} ${isCurrent ? 'current' : ''}">
+        <div class="step-num">${isDone ? '✓' : i + 1}</div>
+      </div>`;
+      if (i < STEP_DEFS.length - 1) html += `<div class="step-line ${isDone ? 'done' : ''}"></div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  });
+}
+
+// ════════════════════════════════════════════════════
+// 7. API LAYER
+// ════════════════════════════════════════════════════
+async function apiPost(path, body) {
+  logDebug('POST', path, 'pending...');
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => 'Unknown');
+      logDebug('POST', path, `${res.status} ERR`, false);
+      throw new Error(`API ${path} failed (${res.status}): ${errText}`);
+    }
+    logDebug('POST', path, `${res.status} OK`, true);
+    return res.json();
+  } catch (err) {
+    logDebug('POST', path, 'OFFLINE', false);
+    throw err;
+  }
+}
+
+async function apiGet(path) {
+  logDebug('GET', path, 'pending...');
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'GET',
+      headers: authHeaders()
+    });
+    if (!res.ok) {
+      logDebug('GET', path, `${res.status} ERR`, false);
+      throw new Error(`API GET ${path} failed (${res.status})`);
+    }
+    logDebug('GET', path, `${res.status} OK`, true);
+    return res.json();
+  } catch (err) {
+    logDebug('GET', path, 'OFFLINE', false);
+    throw err;
+  }
+}
+
+// ════════════════════════════════════════════════════
+// 8. SESSION ACTIONS
+// ════════════════════════════════════════════════════
+async function startSession() {
+  if (isSubmitting) return;
+  isSubmitting = true;
+  const btn = document.getElementById('btn-enter');
+  btn.disabled = true;
+  btn.textContent = '⟳ Initializing...';
+  showLoading('Initializing Session', 'POST /session/start');
+
+  try {
+    const data = await apiPost('/session/start', {});
+    session_id = data.session_id;
+  } catch (err) {
+    session_id = 'local-' + Math.random().toString(36).slice(2,10).toUpperCase();
+    showToast(`Backend offline — local session: ${session_id.slice(0,12)}`);
+  }
+
+  hideLoading();
+  isSubmitting = false;
+  btn.disabled = false;
+  btn.textContent = '⟶ Initialize Fiduciary Session';
+  transitionTo(STATES.BEHAVIORAL);
+}
+
+async function submitBehavioral(answer) {
+  if (isSubmitting) return;
+  isSubmitting = true;
+  behavioralAnswers = [{ question_id: 'fomo_1', answer }];
+  showLoading('Profiling Behavior', 'POST /behavioral/' + session_id);
+  try {
+    await apiPost(`/behavioral/${session_id}`, { answers: behavioralAnswers });
+  } catch (err) {
+    console.warn('Behavioral endpoint (non-blocking):', err.message);
+  }
+  hideLoading();
+  isSubmitting = false;
+  transitionTo(STATES.INPUT);
+}
+
+function getFormValues() {
+  return {
+    monthly_income:       parseFloat(document.getElementById('f-income').value) || null,
+    monthly_expenses:     parseFloat(document.getElementById('f-expenses').value) || null,
+    total_savings:        parseFloat(document.getElementById('f-savings').value) || null,
+    property_price:       parseFloat(document.getElementById('f-price').value) || null,
+    down_payment:         parseFloat(document.getElementById('f-down').value) || null,
+    tenure_years:         parseInt(document.getElementById('f-tenure').value) || null,
+    annual_interest_rate: parseFloat(document.getElementById('f-rate').value) || null,
+    age:                  parseInt(document.getElementById('f-age').value) || null,
+    state:                document.getElementById('f-state').value || null,
+    property_type:        document.getElementById('f-ptype').value || null,
+  };
+}
+
+function validateInput(vals) {
+  const errors = [];
+  if (!vals.monthly_income || vals.monthly_income <= 0) errors.push('Monthly income is required');
+  if (vals.monthly_expenses === null || vals.monthly_expenses < 0) errors.push('Monthly expenses required');
+  if (vals.total_savings === null || vals.total_savings < 0) errors.push('Total savings required');
+  if (!vals.property_price || vals.property_price < 100000) errors.push('Property price must be ≥ ₹1L');
+  if (vals.down_payment === null || vals.down_payment < 0) errors.push('Down payment required');
+  if (!vals.tenure_years || vals.tenure_years < 1 || vals.tenure_years > 30) errors.push('Tenure must be 1–30 years');
+  if (!vals.annual_interest_rate || vals.annual_interest_rate < 1) errors.push('Interest rate required');
+  if (!vals.age || vals.age < 18 || vals.age > 65) errors.push('Age must be 18–65');
+  if (!vals.state) errors.push('State / UT is required');
+  if (!vals.property_type) errors.push('Property type is required');
+  return errors;
+}
+
+async function submitAnalysis() {
+  if (isSubmitting) return;
+  const vals = getFormValues();
+  const errors = validateInput(vals);
+  if (errors.length > 0) { showToast('⚠ ' + errors[0]); return; }
+
+  isSubmitting = true;
+  userInput = { ...vals };
+  const btn = document.getElementById('btn-analyze');
+  btn.disabled = true;
+  btn.textContent = '⟳ Submitting...';
+  showLoading('Submitting Parameters', 'POST /analyze/' + session_id);
+
+  try {
+    const data = await apiPost(`/analyze/${session_id}`, userInput);
+    backendResults = data;
+  } catch (err) {
+    console.warn('Analyze endpoint — using local computation:', err.message);
+    backendResults = computeLocalResults(userInput);
+    showToast('Backend offline — local computation engine active');
+  }
+
+  hideLoading();
+  isSubmitting = false;
+  btn.disabled = false;
+  btn.textContent = '⟶ Run Multi-Agent Analysis';
+  transitionTo(STATES.LOADING);
+  startRoundtable();
+}
+
+// ════════════════════════════════════════════════════
+// 9. LOCAL COMPUTATION FALLBACK
+// ════════════════════════════════════════════════════
+function computeLocalResults(inp) {
+  const stateStampMap = {
+    'Maharashtra': 0.05, 'Karnataka': 0.056, 'Delhi': 0.06, 'Tamil Nadu': 0.07,
+    'Telangana': 0.06, 'Gujarat': 0.049, 'Rajasthan': 0.06, 'West Bengal': 0.06,
+    'Uttar Pradesh': 0.07, 'Punjab': 0.06, 'Haryana': 0.07, 'Kerala': 0.08,
+    'Andhra Pradesh': 0.05, 'Madhya Pradesh': 0.05
+  };
+  const gstRate   = (inp.property_type === 'under_construction') ? 0.05 : 0;
+  const stampRate = stateStampMap[inp.state] || 0.05;
+  const price = inp.property_price;
+  const gst   = price * gstRate;
+  const stamp = price * stampRate;
+  const reg   = price * 0.01;
+  const totalCost = price + gst + stamp + reg;
+
+  const loanAmt = price - inp.down_payment;
+  const r = (inp.annual_interest_rate / 100) / 12;
+  const n = inp.tenure_years * 12;
+  const emi = loanAmt > 0 ? (loanAmt * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1) : 0;
+  const surplus = inp.monthly_income - inp.monthly_expenses - emi;
+  const emiRatio = emi / inp.monthly_income;
+
+  let riskScore = 0;
+  if (emiRatio > 0.4) riskScore += 30;
+  else if (emiRatio > 0.3) riskScore += 15;
+  if (surplus < 0) riskScore += 25;
+  if ((totalCost - price) / price > 0.15) riskScore += 15;
+  if (behavioralAnswers?.[0]?.answer === 'buy_immediately') riskScore += 10;
+  if (inp.down_payment / price < 0.2) riskScore += 10;
+  riskScore = Math.min(riskScore, 100);
+
+  const riskLabel    = riskScore >= 60 ? 'HIGH' : riskScore >= 35 ? 'MEDIUM' : 'LOW';
+  const verdict      = riskLabel === 'HIGH' ? 'NO-GO' : 'GO';
+  const confidence   = riskLabel === 'HIGH' ? 0.82 : riskLabel === 'MEDIUM' ? 0.71 : 0.88;
+  const affordStatus = emiRatio < 0.3 ? 'AFFORDABLE' : emiRatio < 0.4 ? 'STRETCHED' : 'UNAFFORDABLE';
+
+  const bufMonths = surplus > 0
+    ? Math.floor(inp.total_savings / (Math.abs(surplus) + 1))
+    : Math.max(0, Math.floor(inp.total_savings / (inp.monthly_expenses + emi)));
+
+  const scenarios = [
+    {
+      name: 'Income Shock (−20%)',
+      survivable: (inp.monthly_income * 0.8 - inp.monthly_expenses - emi) >= 0,
+      buffer_months: bufMonths,
+      severity: emiRatio > 0.4 ? 'CRITICAL' : 'MODERATE',
+      description: `If income drops 20%, net change vs. current surplus would be ${fmt(Math.round(inp.monthly_income * -0.2))}.`
+    },
+    {
+      name: 'Rate Hike (+200bps)',
+      survivable: surplus > 0,
+      buffer_months: 6,
+      severity: riskLabel,
+      description: `A 2% rate increase would raise EMI by ~${fmt(Math.round(loanAmt * 0.002 / 12))}.`
+    },
+    {
+      name: 'Emergency Fund Test',
+      survivable: inp.total_savings >= (inp.monthly_expenses + emi) * 6,
+      buffer_months: Math.floor(inp.total_savings / Math.max(1, inp.monthly_expenses + emi)),
+      severity: inp.total_savings < (inp.monthly_expenses + emi) * 3 ? 'CRITICAL' : 'MODERATE',
+      description: `Savings cover ${Math.floor(inp.total_savings / Math.max(1, inp.monthly_expenses + emi))} months of combined expenses + EMI.`
+    }
+  ];
+
+  const riskFactors = [
+    { label: `EMI/Income ratio ${(emiRatio * 100).toFixed(1)}% (safe: <30%)`, triggered: emiRatio > 0.30 },
+    { label: `Monthly surplus ${fmt(Math.round(surplus))}`, triggered: surplus < 0 },
+    { label: `Down payment ${(inp.down_payment / price * 100).toFixed(1)}% (min: 20%)`, triggered: inp.down_payment / price < 0.2 },
+    { label: `Hidden cost overhang ${((totalCost - price) / price * 100).toFixed(1)}% above base`, triggered: (totalCost - price) / price > 0.15 },
+    { label: `Behavioral: ${behavioralAnswers?.[0]?.answer === 'buy_immediately' ? 'FOMO detected (+risk)' : 'Rational profile'}`, triggered: behavioralAnswers?.[0]?.answer === 'buy_immediately' }
+  ];
+
+  return {
+    financial_reality: {
+      emi: Math.round(emi),
+      emi_to_income_ratio: emiRatio,
+      monthly_surplus: Math.round(surplus),
+      loan_amount: Math.round(loanAmt),
+      affordability_status: affordStatus
+    },
+    hidden_costs: {
+      base_price: price,
+      gst: Math.round(gst),
+      stamp_duty: Math.round(stamp),
+      registration: Math.round(reg),
+      total_cost: Math.round(totalCost)
+    },
+    scenarios,
+    risk_assessment: {
+      composite_score: riskScore,
+      risk_label: riskLabel,
+      factors: riskFactors
+    },
+    verdict: {
+      decision: verdict,
+      confidence,
+      reasoning: `Deterministic engine result: EMI/income ${(emiRatio * 100).toFixed(1)}% — ${emiRatio > 0.4 ? 'EXCEEDS RBI 40% advisory' : emiRatio > 0.3 ? 'within cautionary 30–40% zone' : 'within safe zone <30%'}. Monthly surplus post-EMI: ${fmt(Math.round(surplus))}. ${surplus < 0 ? 'Critical: negative surplus — no discretionary buffer.' : 'Positive surplus provides marginal safety.'} ${behavioralAnswers?.[0]?.answer === 'buy_immediately' ? 'FOMO behavioral bias detected — risk premium applied.' : 'Rational behavioral profile confirmed.'} ${verdict === 'GO' ? 'Proceed cautiously. Maintain 6-month emergency reserve before committing.' : 'Avoid commitment. Improve financial position first.'}`
+    },
+    session_id
+  };
+}
+
+// ════════════════════════════════════════════════════
+// 10. FORCE-DIRECTED INTERACTION GRAPH
+// ════════════════════════════════════════════════════
+const AGENT_COLORS = {
+  math: '#60a5fa',
+  bias: '#fbbf24',
+  reg:  '#34d399',
+  risk: '#f87171',
+  sys:  '#b45309'
+};
+const AGENT_LABELS = {
+  math: 'MATH', bias: 'BIAS', reg: 'REG', risk: 'RISK', sys: 'SYS'
+};
+
+let forceNodes = [];
+let forceEdges = [];
+let interactionCounts = {};
+
+function initForceGraph() {
+  const canvas = document.getElementById('force-canvas');
+  if (!canvas) return;
+
+  // Set canvas pixel dimensions
+  const W = canvas.offsetWidth || 400;
+  const H = 280;
+  canvas.width  = W;
+  canvas.height = H;
+
+  const cx = W / 2, cy = H / 2;
+
+  forceNodes = [
+    { id: 'sys',  x: cx,        y: cy - 80,  vx: 0, vy: 0, active: true,  done: false, r: 20 },
+    { id: 'math', x: cx - 100,  y: cy + 40,  vx: 0, vy: 0, active: false, done: false, r: 18 },
+    { id: 'bias', x: cx + 100,  y: cy + 40,  vx: 0, vy: 0, active: false, done: false, r: 18 },
+    { id: 'reg',  x: cx - 50,   y: cy + 100, vx: 0, vy: 0, active: false, done: false, r: 18 },
+    { id: 'risk', x: cx + 50,   y: cy + 100, vx: 0, vy: 0, active: false, done: false, r: 18 },
+  ];
+  forceEdges = [];
+  interactionCounts = {};
+
+  document.getElementById('interaction-ledger-body').innerHTML =
+    '<div style="color:#444;font-size:0.58rem">Waiting for agent communication...</div>';
+
+  stopForceGraph();
+  drawForceGraph();
+}
+
+function addForceEdge(fromId, toId) {
+  const key = [fromId, toId].sort().join('-');
+  interactionCounts[key] = (interactionCounts[key] || 0) + 1;
+
+  const existing = forceEdges.find(e => e.key === key);
+  if (existing) {
+    existing.weight = interactionCounts[key];
+  } else {
+    forceEdges.push({ key, from: fromId, to: toId, weight: 1 });
+    updateInteractionLedger();
+  }
+}
+
+function updateInteractionLedger() {
+  const body = document.getElementById('interaction-ledger-body');
+  const sorted = Object.entries(interactionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+
+  if (sorted.length === 0) return;
+
+  body.innerHTML = sorted.map(([key, count]) => {
+    const [a, b] = key.split('-');
+    return `<div class="ledger-entry">
+      <span class="ledger-from">${AGENT_LABELS[a] || a}</span>
+      <span class="ledger-arrow">↔</span>
+      <span class="ledger-to">${AGENT_LABELS[b] || b}</span>
+      <span class="ledger-count">×${count}</span>
+    </div>`;
+  }).join('');
+}
+
+function drawForceGraph() {
+  const canvas = document.getElementById('force-canvas');
+  if (!canvas || currentState !== STATES.LOADING) { forceAnimFrame = null; return; }
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // Physics tick
+  const K_REPEL  = 3000;
+  const K_SPRING = 0.03;
+  const K_DAMP   = 0.85;
+  const BORDER   = 40;
+
+  for (let i = 0; i < forceNodes.length; i++) {
+    let fx = 0, fy = 0;
+    const ni = forceNodes[i];
+
+    // Repulsion from other nodes
+    for (let j = 0; j < forceNodes.length; j++) {
+      if (i === j) continue;
+      const nj = forceNodes[j];
+      const dx = ni.x - nj.x, dy = ni.y - nj.y;
+      const dist2 = Math.max(dx * dx + dy * dy, 100);
+      const dist  = Math.sqrt(dist2);
+      fx += K_REPEL * dx / (dist2 * dist) * dist;
+      fy += K_REPEL * dy / (dist2 * dist) * dist;
+    }
+
+    // Spring attraction from edges
+    for (const edge of forceEdges) {
+      let partner = null;
+      if (edge.from === ni.id) {
+        partner = forceNodes.find(n => n.id === edge.to);
+      } else if (edge.to === ni.id) {
+        partner = forceNodes.find(n => n.id === edge.from);
+      }
+      if (!partner) continue;
+      const dx = partner.x - ni.x, dy = partner.y - ni.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const targetDist = 120 - edge.weight * 5;
+      const force = K_SPRING * (dist - targetDist);
+      fx += force * dx / Math.max(dist, 1);
+      fy += force * dy / Math.max(dist, 1);
+    }
+
+    // Center gravity
+    fx += (W / 2 - ni.x) * 0.005;
+    fy += (H / 2 - ni.y) * 0.005;
+
+    ni.vx = (ni.vx + fx) * K_DAMP;
+    ni.vy = (ni.vy + fy) * K_DAMP;
+    ni.x  = Math.max(BORDER, Math.min(W - BORDER, ni.x + ni.vx));
+    ni.y  = Math.max(BORDER, Math.min(H - BORDER, ni.y + ni.vy));
+  }
+
+  // Render
+  ctx.clearRect(0, 0, W, H);
+
+  // Draw grid-like background pattern
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  // Draw edges
+  for (const edge of forceEdges) {
+    const nFrom = forceNodes.find(n => n.id === edge.from);
+    const nTo   = forceNodes.find(n => n.id === edge.to);
+    if (!nFrom || !nTo) continue;
+
+    const weight = Math.min(edge.weight, 5);
+    ctx.beginPath();
+    ctx.moveTo(nFrom.x, nFrom.y);
+    ctx.lineTo(nTo.x, nTo.y);
+    ctx.strokeStyle = `rgba(180,83,9,${0.15 + weight * 0.12})`;
+    ctx.lineWidth = weight;
+    ctx.stroke();
+
+    // Edge weight label
+    const mx = (nFrom.x + nTo.x) / 2;
+    const my = (nFrom.y + nTo.y) / 2;
+    ctx.fillStyle = 'rgba(180,83,9,0.8)';
+    ctx.font = '9px Space Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`×${edge.weight}`, mx, my - 4);
+  }
+
+  // Draw nodes
+  for (const node of forceNodes) {
+    const color = AGENT_COLORS[node.id] || '#888';
+    const isActive = node.active;
+    const isDone   = node.done;
+
+    // Glow / pulse for active node
+    if (isActive && !isDone) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.r + 8, 0, Math.PI * 2);
+      ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb(', 'rgba(');
+      ctx.fill();
+    }
+
+    // Node fill
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+    ctx.fillStyle = isDone ? '#22c55e' : isActive ? color : 'rgba(255,255,255,0.08)';
+    ctx.fill();
+
+    // Node border
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+    ctx.strokeStyle = isDone ? '#22c55e' : isActive ? color : 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Label
+    ctx.fillStyle = isDone ? '#fff' : isActive ? '#fff' : 'rgba(255,255,255,0.3)';
+    ctx.font = `bold 9px Space Mono, monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(AGENT_LABELS[node.id] || node.id.toUpperCase(), node.x, node.y);
+  }
+
+  forceAnimFrame = requestAnimationFrame(drawForceGraph);
+}
+
+function stopForceGraph() {
+  if (forceAnimFrame) {
+    cancelAnimationFrame(forceAnimFrame);
+    forceAnimFrame = null;
+  }
+}
+
+function setForceNodeActive(agentId) {
+  const node = forceNodes.find(n => n.id === agentId);
+  if (node) { node.active = true; }
+
+  // Add edge from sys to this agent (sys always sends work)
+  if (agentId !== 'sys') {
+    addForceEdge('sys', agentId);
+    // Also add edges between sequential agents for roundtable logic
+    const agentOrder = ['math', 'bias', 'reg', 'risk'];
+    const idx = agentOrder.indexOf(agentId);
+    if (idx > 0) {
+      addForceEdge(agentOrder[idx - 1], agentId);
+    }
+  }
+}
+
+function setForceNodeDone(agentId) {
+  const node = forceNodes.find(n => n.id === agentId);
+  if (node) { node.done = true; }
+}
+
+// ════════════════════════════════════════════════════
+// 11. WEBSOCKET ROUNDTABLE
+// ════════════════════════════════════════════════════
+function startRoundtable() {
+  const termBody = document.getElementById('terminal-body');
+  termBody.innerHTML = '<span class="cursor-blink" id="cursor"></span>';
+  ['math','bias','reg','risk'].forEach(a => {
+    document.getElementById(`ac-${a}`).className = 'agent-card';
+    document.getElementById(`as-${a}`).textContent = 'Standby';
+  });
+
+  setWsStatus('connecting', 'Connecting to /roundtable/' + session_id);
+  logDebug('WS', `/roundtable/${session_id}`, 'CONNECTING');
+
+  const wsUrl = `${WS_BASE}/roundtable/${session_id}?token=${AUTH_TOKEN}`;
+  let wsOpen  = false;
+  let wsTimeout = null;
+
+  try {
+    const ws = new WebSocket(wsUrl);
+    wsConnection = ws;
+
+    wsTimeout = setTimeout(() => {
+      if (!wsOpen) { ws.close(); runSimulatedRoundtable(); }
+    }, 3000);
+
+    ws.onopen = () => {
+      wsOpen = true;
+      clearTimeout(wsTimeout);
+      logDebug('WS', `/roundtable/${session_id}`, 'CONNECTED', true);
+      setWsStatus('connected', 'Stream connected — Round 1 active');
+    };
+    ws.onmessage = (evt) => {
+      try { handleWsMessage(JSON.parse(evt.data)); }
+      catch { appendLog('sys', '[STREAM]', evt.data); }
+    };
+    ws.onerror = () => {
+      if (!wsOpen) { clearTimeout(wsTimeout); logDebug('WS', '/roundtable', 'ERROR', false); runSimulatedRoundtable(); }
+    };
+    ws.onclose = (e) => {
+      if (e.code !== 1000 && currentState === STATES.LOADING)
+        setWsStatus('error', 'Stream closed — ' + (e.reason || 'ended'));
+    };
+  } catch (err) {
+    clearTimeout(wsTimeout);
+    runSimulatedRoundtable();
+  }
+}
+
+function handleWsMessage(msg) {
+  const agent = msg.agent || '[AGENT]';
+  const text  = msg.message || JSON.stringify(msg);
+  const round = msg.round;
+  if (round) {
+    document.getElementById('terminal-round').textContent = `ROUND ${round}`;
+    document.getElementById('graph-round-label').textContent = `ROUND ${round}`;
+  }
+
+  const agentMap = {
+    'math': 'math', 'MATH': 'math', 'bias': 'bias', 'BIAS': 'bias',
+    'reg':  'reg',  'REG':  'reg',  'regulatory': 'reg',
+    'risk': 'risk', 'RISK': 'risk', 'system': 'sys', 'SYSTEM': 'sys'
+  };
+  const agentKey = agentMap[agent.toLowerCase().replace(/[\[\]]/g, '')] || 'sys';
+
+  appendLog(agentKey, `[${agent.toUpperCase().replace(/[\[\]]/g, '')}]`, text);
+  activateAgentCard(agentKey);
+  setForceNodeActive(agentKey);
+
+  if (msg.type === 'verdict' || msg.final) {
+    if (msg.results) backendResults = msg.results;
+    finishRoundtable();
+  }
+}
+
+function setWsStatus(state, label) {
+  const dot = document.getElementById('ws-dot');
+  const lbl = document.getElementById('ws-label');
+  dot.className = 'ws-dot ' + (state === 'connected' ? 'connected' : state === 'error' ? 'error' : '');
+  lbl.textContent = label;
+}
+
+function appendLog(agentCls, agentLabel, message) {
+  const termBody = document.getElementById('terminal-body');
+  const cursor   = document.getElementById('cursor');
+  const now = new Date().toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `
+    <span class="log-ts">${now}</span>
+    <span class="log-agent ${agentCls}">${agentLabel}</span>
+    <span class="log-msg">${message}</span>
+  `;
+  termBody.insertBefore(line, cursor);
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function activateAgentCard(agentKey) {
+  const map = { math: 'math', bias: 'bias', reg: 'reg', risk: 'risk' };
+  const key = map[agentKey];
+  if (!key) return;
+  ['math','bias','reg','risk'].forEach(k => {
+    const card = document.getElementById(`ac-${k}`);
+    if (k === key && !card.classList.contains('done')) {
+      card.className = 'agent-card active';
+      document.getElementById(`as-${k}`).textContent = 'Processing...';
+    }
+  });
+}
+
+function completeAgentCard(key, statusText) {
+  const card = document.getElementById(`ac-${key}`);
+  if (!card) return;
+  card.className = 'agent-card done';
+  document.getElementById(`as-${key}`).textContent = statusText || '✓ Done';
+  setForceNodeDone(key);
+}
+
+// ════════════════════════════════════════════════════
+// 12. SIMULATED ROUNDTABLE (offline fallback)
+// ════════════════════════════════════════════════════
+function runSimulatedRoundtable() {
+  setWsStatus('connecting', 'Backend unavailable — local engine active');
+  logDebug('WS', '/roundtable', 'LOCAL MODE', false);
+  document.getElementById('graph-round-label').textContent = 'LOCAL';
+
+  const r   = backendResults;
+  const fr  = r?.financial_reality || {};
+  const hc  = r?.hidden_costs || {};
+  const ra  = r?.risk_assessment || {};
+  const v   = r?.verdict || {};
+  const inp = userInput || {};
+
+  const logs = [
+    { a: 'sys',  l: '[SYSTEM]',     m: `Session ${session_id} — State: ${inp.state || '—'} | Price: ${fmt(inp.property_price)} | Type: ${inp.property_type || '—'}` },
+    { a: 'math', l: '[MATH-AGENT]', m: 'EMI computation engine initialized...' },
+    { a: 'math', l: '[MATH-AGENT]', m: `Loan: ${fmt(fr.loan_amount)} | Tenure: ${inp.tenure_years}y | Rate: ${inp.annual_interest_rate}% p.a.` },
+    { a: 'math', l: '[MATH-AGENT]', m: `Monthly EMI: ${fmt(fr.emi)} | EMI/Income: ${(fr.emi_to_income_ratio * 100).toFixed(1)}%` },
+    { a: 'math', l: '[MATH-AGENT]', m: `Surplus post-EMI: ${fmt(fr.monthly_surplus)} | Status: ${fr.affordability_status}` },
+    { a: 'bias', l: '[BIAS-AGENT]', m: `Behavioral profile loaded: ${behavioralAnswers?.[0]?.answer === 'buy_immediately' ? 'FOMO' : 'RATIONAL'} pattern detected` },
+    { a: 'bias', l: '[BIAS-AGENT]', m: behavioralAnswers?.[0]?.answer === 'buy_immediately' ? 'WARNING: FOMO signal active — behavioral risk premium +10 pts' : 'Rational signal confirmed — minimal impulsivity adjustment' },
+    { a: 'reg',  l: '[REG-AGENT]',  m: `RBI 40% EMI compliance check: ${(fr.emi_to_income_ratio * 100).toFixed(1)}% → ${fr.emi_to_income_ratio > 0.4 ? '⚠ BREACH' : '✓ CLEAR'}` },
+    { a: 'reg',  l: '[REG-AGENT]',  m: `RERA cost breakdown: GST ${fmt(hc.gst)} | Stamp ${fmt(hc.stamp_duty)} | Reg ${fmt(hc.registration)}` },
+    { a: 'reg',  l: '[REG-AGENT]',  m: `Total acquisition cost: ${fmt(hc.total_cost)} | Overhang: ${((hc.total_cost - hc.base_price) / hc.base_price * 100).toFixed(1)}% above base` },
+    { a: 'risk', l: '[RISK-AGENT]', m: 'Running 3-scenario stress model: Income Shock | Rate Hike | Emergency Fund' },
+    { a: 'risk', l: '[RISK-AGENT]', m: `Composite risk score: ${ra.composite_score}/100 | Risk level: ${ra.risk_label}` },
+    { a: 'risk', l: '[RISK-AGENT]', m: `Factor analysis — ${ra.factors?.filter(f => f.triggered).length || 0} risk triggers active` },
+    { a: 'sys',  l: '[SYSTEM]',     m: `▶ VERDICT: ${v.decision} | Confidence: ${((v.confidence || 0) * 100).toFixed(0)}% | Engine v2.0` },
+  ];
+
+  const agentPhases = {
+    math: { start: 1, end: 4 },
+    bias: { start: 5, end: 6 },
+    reg:  { start: 7, end: 9 },
+    risk: { start: 10, end: 12 }
+  };
+
+  let round = 1;
+  const delay = 520;
+
+  logs.forEach((log, i) => {
+    setTimeout(() => {
+      if (i === 5) {
+        round = 2;
+        document.getElementById('terminal-round').textContent = `ROUND ${round}`;
+        document.getElementById('graph-round-label').textContent = `ROUND ${round}`;
+      }
+      if (i === 10) {
+        round = 3;
+        document.getElementById('terminal-round').textContent = `ROUND ${round}`;
+        document.getElementById('graph-round-label').textContent = `ROUND ${round}`;
+      }
+
+      Object.entries(agentPhases).forEach(([key, phase]) => {
+        const card = document.getElementById(`ac-${key}`);
+        if (i === phase.start) {
+          card.className = 'agent-card active';
+          document.getElementById(`as-${key}`).textContent = 'Processing...';
+          setForceNodeActive(key);
+        }
+        if (i === phase.end + 1) completeAgentCard(key);
+      });
+
+      appendLog(log.a, log.l, log.m);
+      if (log.a !== 'sys') setForceNodeActive(log.a);
+
+      if (i === logs.length - 1) {
+        completeAgentCard('risk');
+        setWsStatus('connected', 'Analysis complete — rendering verdict');
+        setTimeout(finishRoundtable, 700);
+      }
+    }, i * delay);
+  });
+}
+
+function finishRoundtable() {
+  if (currentState !== STATES.LOADING) return;
+  stopForceGraph();
+  transitionTo(STATES.DASHBOARD);
+  renderVerdict();
+}
+
+// ════════════════════════════════════════════════════
+// 13. VERDICT RENDERER
+// ════════════════════════════════════════════════════
+function renderVerdict() {
+  const r = backendResults;
+  if (!r) { showToast('No analysis results available'); return; }
+
+  const fr  = r.financial_reality || {};
+  const hc  = r.hidden_costs      || {};
+  const ra  = r.risk_assessment   || {};
+  const v   = r.verdict           || {};
+  const now = new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+
+  // Meta
+  document.getElementById('v-meta').textContent = `Session: ${session_id} | Generated: ${now}`;
+
+  // Verdict badge
+  const badge    = document.getElementById('v-go-badge');
+  const decision = v.decision || '—';
+  badge.className = `go-badge ${decision === 'GO' ? 'go' : 'nogo'}`;
+  badge.innerHTML = `${decision}<span class="go-sub">${decision === 'GO' ? 'PROCEED WITH CAUTION' : 'AVOID COMMITMENT'}</span>`;
+
+  // Confidence
+  const conf = v.confidence || 0;
+  document.getElementById('v-confidence').textContent = (conf * 100).toFixed(0) + '%';
+  setTimeout(() => { document.getElementById('v-conf-bar').style.width = (conf * 100) + '%'; }, 200);
+
+  // Reasoning
+  document.getElementById('v-reasoning').innerHTML = `<strong>Analysis Summary:</strong> ${v.reasoning || 'No reasoning provided.'}`;
+
+  // Financial Reality
+  document.getElementById('v-emi').textContent = fmt(fr.emi);
+  const emiRatio = fr.emi_to_income_ratio || 0;
+  const ratioEl  = document.getElementById('v-emi-ratio');
+  ratioEl.textContent = (emiRatio * 100).toFixed(1) + '%';
+  ratioEl.className   = 'stat-val ' + (emiRatio > 0.4 ? 'warn' : emiRatio > 0.3 ? 'ok' : 'safe');
+  const surplus   = fr.monthly_surplus || 0;
+  const surplusEl = document.getElementById('v-surplus');
+  surplusEl.textContent = fmt(surplus);
+  surplusEl.className   = 'stat-val ' + (surplus < 0 ? 'warn' : 'safe');
+  document.getElementById('v-loan').textContent = fmt(fr.loan_amount);
+
+  const affordStatus = (fr.affordability_status || '').toUpperCase();
+  const affordClass  = affordStatus === 'AFFORDABLE' ? 'affordable' : affordStatus === 'STRETCHED' ? 'stretched' : 'unaffordable';
+  document.getElementById('v-afford-badge').innerHTML = `<span class="affordability-badge ${affordClass}">${affordStatus || '—'}</span>`;
+
+  // Hidden Costs
+  document.getElementById('v-base').textContent  = fmt(hc.base_price || hc.property_price);
+  document.getElementById('v-gst').textContent   = fmt(hc.gst);
+  document.getElementById('v-stamp').textContent = fmt(hc.stamp_duty);
+  document.getElementById('v-reg').textContent   = fmt(hc.registration);
+  document.getElementById('v-total').textContent = fmt(hc.total_cost);
+
+  // Risk Score
+  const score    = ra.composite_score || 0;
+  const riskLabel = (ra.risk_label || 'MEDIUM').toLowerCase();
+  const scoreEl   = document.getElementById('v-risk-score');
+  scoreEl.textContent = score;
+  scoreEl.className   = `risk-score-display ${riskLabel}`;
+  document.getElementById('v-risk-label').innerHTML = `<span class="risk-label-badge ${riskLabel}">${(ra.risk_label || '—').toUpperCase()} RISK</span>`;
+  const factorsEl = document.getElementById('v-risk-factors');
+  factorsEl.innerHTML = ra.factors?.length
+    ? ra.factors.map(f => `<div class="risk-factor-row"><div class="rf-dot ${f.triggered ? 'triggered' : 'clear'}"></div><span>${f.label}</span></div>`).join('')
+    : '<div style="font-size:0.62rem;color:#888">No factor data.</div>';
+
+  // Scenarios
+  const scenEl = document.getElementById('v-scenarios');
+  scenEl.innerHTML = r.scenarios?.length
+    ? r.scenarios.map(s => {
+        const sev     = (s.severity || 'MODERATE').toUpperCase();
+        const sevClass = sev === 'CRITICAL' ? 'critical' : sev === 'LOW' || sev === 'SAFE' ? 'safe' : 'moderate';
+        return `<div class="scenario-card ${sevClass}">
+          <div class="scenario-title">${s.name || 'Scenario'}</div>
+          <div class="scenario-desc">${s.description || ''}</div>
+          <div class="scenario-badges">
+            <span class="s-badge">${sev}</span>
+            ${s.survivable !== undefined ? `<span class="s-badge">${s.survivable ? '✓ Survivable' : '✗ Critical'}</span>` : ''}
+            ${s.buffer_months !== undefined ? `<span class="s-badge">Buffer: ${s.buffer_months} mo.</span>` : ''}
+          </div>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:0.62rem;color:#888">No scenario data.</div>';
+
+  // Report sub
+  document.getElementById('v-report-sub').textContent = `Session ${session_id} — PDF generation available`;
+
+  // Render charts (deferred for DOM paint)
+  setTimeout(() => renderAllCharts(), 150);
+}
+
+// ════════════════════════════════════════════════════
+// 14. CHARTS
+// ════════════════════════════════════════════════════
+function renderAllCharts() {
+  if (!backendResults) return;
+  drawCashFlowChart();
+  drawEMIGauge();
+  drawCostDonut();
+  drawScenarioChart();
+}
+
+function getChartCtx(id) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return null;
+  const W = canvas.parentElement.offsetWidth || 300;
+  canvas.width  = W;
+  // height set by HTML attribute
+  return { ctx: canvas.getContext('2d'), W, H: canvas.height };
+}
+
+/* ── CHART 1: CASH FLOW (line chart) ── */
+function drawCashFlowChart() {
+  const canvas = document.getElementById('chart-cashflow');
+  if (!canvas) return;
+  const wrap = canvas.parentElement;
+  const W = wrap.offsetWidth || 340;
+  const H = 180;
+  canvas.width  = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const fr  = backendResults.financial_reality || {};
+  const inp = userInput || {};
+
+  const income   = inp.monthly_income   || fr.emi + Math.abs(fr.monthly_surplus || 0) + (inp.monthly_expenses || 0);
+  const expenses = inp.monthly_expenses || 0;
+  const emi      = fr.emi || 0;
+  const surplus  = fr.monthly_surplus || income - expenses - emi;
+
+  const PAD = { top: 20, right: 20, bottom: 36, left: 64 };
+  const pw  = W - PAD.left - PAD.right;
+  const ph  = H - PAD.top - PAD.bottom;
+
+  const months   = 12;
+  const maxVal   = income * 1.05;
+  const minVal   = Math.min(0, surplus) * 1.1;
+  const valRange = maxVal - minVal;
+
+  function xPos(i) { return PAD.left + (i / (months - 1)) * pw; }
+  function yPos(v) { return PAD.top + ph - ((v - minVal) / valRange) * ph; }
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Horizontal grid lines
+  ctx.strokeStyle = '#f0f0f0';
+  ctx.lineWidth   = 1;
+  const gridSteps = 4;
+  for (let i = 0; i <= gridSteps; i++) {
+    const val = minVal + (valRange / gridSteps) * i;
+    const y   = yPos(val);
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, y);
+    ctx.lineTo(W - PAD.right, y);
+    ctx.stroke();
+    // Y-axis labels
+    ctx.fillStyle   = '#888';
+    ctx.font        = '9px Space Mono, monospace';
+    ctx.textAlign   = 'right';
+    ctx.textBaseline = 'middle';
+    const label = Math.abs(val) >= 100000
+      ? `₹${(val / 100000).toFixed(1)}L`
+      : `₹${Math.round(val / 1000)}k`;
+    ctx.fillText(label, PAD.left - 6, y);
+  }
+
+  // Zero line
+  if (minVal < 0) {
+    ctx.strokeStyle = '#ddd';
+    ctx.lineWidth   = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(PAD.left, yPos(0));
+    ctx.lineTo(W - PAD.right, yPos(0));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // X-axis labels (months)
+  ctx.fillStyle   = '#888';
+  ctx.font        = '9px Space Mono, monospace';
+  ctx.textAlign   = 'center';
+  ctx.textBaseline = 'top';
+  for (let i = 0; i < months; i++) {
+    if (i % 3 === 0 || i === months - 1) {
+      ctx.fillText(`M${i + 1}`, xPos(i), H - PAD.bottom + 8);
+    }
+  }
+
+  // Draw income line (trust blue solid)
+  function drawLine(color, lw, dash, getValue) {
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = lw;
+    ctx.setLineDash(dash);
+    for (let i = 0; i < months; i++) {
+      const x = xPos(i);
+      const y = yPos(getValue(i));
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Surplus fill area
+  ctx.beginPath();
+  for (let i = 0; i < months; i++) {
+    const x = xPos(i);
+    const y = yPos(surplus);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.lineTo(xPos(months - 1), yPos(0));
+  ctx.lineTo(xPos(0), yPos(0));
+  ctx.closePath();
+  ctx.fillStyle = surplus >= 0 ? 'rgba(6,95,70,0.08)' : 'rgba(153,27,27,0.08)';
+  ctx.fill();
+
+  drawLine('#1e3a8a', 2, [],      () => income);
+  drawLine('#991b1b', 2, [],      () => expenses + emi);
+  drawLine('#065f46', 2, [6, 4], () => surplus);
+
+  // Dots at data points for income and expense
+  [[income, '#1e3a8a'], [expenses + emi, '#991b1b'], [surplus, '#065f46']].forEach(([val, color]) => {
+    ctx.beginPath();
+    ctx.arc(xPos(0), yPos(val), 3, 0, Math.PI * 2);
+    ctx.arc(xPos(11), yPos(val), 3, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  });
+}
+
+/* ── CHART 2: EMI GAUGE (semicircle) ── */
+function drawEMIGauge() {
+  const canvas = document.getElementById('chart-gauge');
+  if (!canvas) return;
+  const ratio = backendResults.financial_reality?.emi_to_income_ratio || 0;
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, W, H);
+
+  const cx = W / 2;
+  const cy = H - 16;
+  const r  = Math.min(W / 2 - 14, H - 24);
+
+  // Draw colored zones (π to 0 = left to right)
+  const zones = [
+    { from: Math.PI,         to: Math.PI * 1.33, color: '#dcfce7', label: 'SAFE' },
+    { from: Math.PI * 1.33,  to: Math.PI * 1.6,  color: '#fef9c3', label: 'OK' },
+    { from: Math.PI * 1.6,   to: Math.PI * 2,    color: '#fee2e2', label: 'RISK' },
+  ];
+  zones.forEach(zone => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, zone.from, zone.to, false);
+    ctx.arc(cx, cy, r - 20, zone.to, zone.from, true);
+    ctx.closePath();
+    ctx.fillStyle = zone.color;
+    ctx.fill();
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  });
+
+  // Zone labels
+  ctx.font = 'bold 8px Space Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#555';
+  ctx.fillText('SAFE', cx - r * 0.7, cy - 8);
+  ctx.fillText('OK',   cx,           cy - r + 12);
+  ctx.fillText('RISK', cx + r * 0.7, cy - 8);
+
+  // Needle
+  const clampedRatio = Math.min(ratio, 0.6);
+  const needleAngle = Math.PI + (clampedRatio / 0.6) * Math.PI;
+  const nx = cx + (r - 10) * Math.cos(needleAngle);
+  const ny = cy + (r - 10) * Math.sin(needleAngle);
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(nx, ny);
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = '#111';
+  ctx.fill();
+
+  // Value display
+  ctx.font = 'bold 13px Space Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = ratio > 0.4 ? '#991b1b' : ratio > 0.3 ? '#b45309' : '#065f46';
+  ctx.fillText(`${(ratio * 100).toFixed(1)}%`, cx, cy - 30);
+
+  // Update label below
+  const gaugeLabel = document.getElementById('gauge-label');
+  if (gaugeLabel) {
+    gaugeLabel.textContent = ratio > 0.4
+      ? '⚠ EXCEEDS RBI LIMIT'
+      : ratio > 0.3
+      ? 'CAUTIONARY ZONE'
+      : '✓ WITHIN SAFE BOUNDS';
+    gaugeLabel.style.color = ratio > 0.4 ? '#991b1b' : ratio > 0.3 ? '#b45309' : '#065f46';
+  }
+}
+
+/* ── CHART 3: COST DONUT ── */
+function drawCostDonut() {
+  const canvas = document.getElementById('chart-donut');
+  if (!canvas) return;
+  const hc  = backendResults.hidden_costs || {};
+  const W   = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, W, H);
+
+  const base  = hc.base_price      || 0;
+  const gst   = hc.gst             || 0;
+  const stamp = hc.stamp_duty      || 0;
+  const reg   = hc.registration    || 0;
+  const total = base + gst + stamp + reg;
+
+  if (total === 0) return;
+
+  const slices = [
+    { label: 'Base',  value: base,  color: '#1e3a8a' },
+    { label: 'Stamp', value: stamp, color: '#991b1b' },
+    { label: 'GST',   value: gst,   color: '#b45309' },
+    { label: 'Reg',   value: reg,   color: '#065f46' },
+  ].filter(s => s.value > 0);
+
+  const cx = W / 2;
+  const cy = H / 2 - 4;
+  const r  = Math.min(cx, cy) - 8;
+  const ir = r * 0.52; // inner radius (donut hole)
+
+  let startAngle = -Math.PI / 2;
+  slices.forEach(slice => {
+    const sweep = (slice.value / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, startAngle + sweep, false);
+    ctx.arc(cx, cy, ir, startAngle + sweep, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle   = slice.color;
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+    startAngle += sweep;
+  });
+
+  // Center text
+  ctx.fillStyle   = '#111';
+  ctx.font        = 'bold 9px Space Mono, monospace';
+  ctx.textAlign   = 'center';
+  ctx.textBaseline = 'middle';
+  const totalL = total >= 10000000
+    ? `₹${(total / 10000000).toFixed(1)}Cr`
+    : total >= 100000
+    ? `₹${(total / 100000).toFixed(1)}L`
+    : fmt(total);
+  ctx.fillText(totalL, cx, cy - 5);
+  ctx.font      = '7px Space Mono, monospace';
+  ctx.fillStyle = '#888';
+  ctx.fillText('TOTAL', cx, cy + 8);
+
+  // Legend below
+  const legendEl = document.getElementById('donut-legend');
+  if (legendEl) {
+    legendEl.innerHTML = slices.map(s => {
+      const pct = ((s.value / total) * 100).toFixed(1);
+      return `<div class="legend-item"><div class="legend-dot" style="background:${s.color};display:inline-block;width:8px;height:8px;margin-right:4px"></div>${s.label} ${pct}%</div>`;
+    }).join('');
+    legendEl.style.display = 'flex';
+    legendEl.style.flexWrap = 'wrap';
+    legendEl.style.gap = '6px';
+    legendEl.style.justifyContent = 'center';
+    legendEl.style.marginTop = '6px';
+    legendEl.style.fontSize = '0.5rem';
+    legendEl.style.letterSpacing = '0.05em';
+    legendEl.style.color = '#666';
+  }
+}
+
+/* ── CHART 4: SCENARIO BARS (horizontal) ── */
+function drawScenarioChart() {
+  const canvas = document.getElementById('chart-scenarios');
+  if (!canvas) return;
+  const scenarios = backendResults.scenarios || [];
+  if (scenarios.length === 0) return;
+
+  const wrap = canvas.parentElement;
+  const W = wrap.offsetWidth - 32 || 300;
+  const H = 130;
+  canvas.width  = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const PAD  = { top: 12, right: 20, bottom: 20, left: 160 };
+  const ph   = H - PAD.top - PAD.bottom;
+  const pw   = W - PAD.left - PAD.right;
+  const barH = Math.min(24, (ph / scenarios.length) - 6);
+  const maxBuf = Math.max(...scenarios.map(s => s.buffer_months || 0), 12);
+
+  const sevColors = { CRITICAL: '#991b1b', MODERATE: '#b45309', LOW: '#065f46', SAFE: '#065f46' };
+
+  scenarios.forEach((s, i) => {
+    const y      = PAD.top + i * ((ph) / scenarios.length) + (((ph / scenarios.length) - barH) / 2);
+    const bufVal = s.buffer_months || 0;
+    const barW   = (bufVal / maxBuf) * pw;
+    const sev    = (s.severity || 'MODERATE').toUpperCase();
+    const color  = sevColors[sev] || '#888';
+
+    // Background track
+    ctx.fillStyle = '#f5f5f5';
+    ctx.fillRect(PAD.left, y, pw, barH);
+
+    // Value bar
+    ctx.fillStyle = color;
+    ctx.fillRect(PAD.left, y, barW, barH);
+
+    // Danger threshold line at 6 months
+    const threshold6 = (6 / maxBuf) * pw;
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(PAD.left + threshold6, PAD.top);
+    ctx.lineTo(PAD.left + threshold6, H - PAD.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Bar label (buffer months)
+    ctx.fillStyle   = '#fff';
+    ctx.font        = 'bold 9px Space Mono, monospace';
+    ctx.textAlign   = 'left';
+    ctx.textBaseline = 'middle';
+    if (barW > 24) ctx.fillText(`${bufVal} mo.`, PAD.left + barW - 36, y + barH / 2);
+    else {
+      ctx.fillStyle = '#555';
+      ctx.fillText(`${bufVal} mo.`, PAD.left + barW + 4, y + barH / 2);
+    }
+
+    // Scenario name (left label)
+    ctx.fillStyle   = '#111';
+    ctx.font        = '9px Space Mono, monospace';
+    ctx.textAlign   = 'right';
+    ctx.textBaseline = 'middle';
+    const name = (s.name || 'Scenario').slice(0, 22);
+    ctx.fillText(name, PAD.left - 6, y + barH / 2);
+
+    // Survivable indicator
+    ctx.fillStyle = s.survivable ? '#065f46' : '#991b1b';
+    ctx.font      = 'bold 8px Space Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(s.survivable ? '✓' : '✗', PAD.left - 38, y + barH / 2);
+  });
+
+  // Axis label at bottom
+  ctx.fillStyle    = '#888';
+  ctx.font         = '8px Space Mono, monospace';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Buffer Months (RBI min: 6 months recommended)', PAD.left + pw / 2, H - 2);
+}
+
+// ════════════════════════════════════════════════════
+// 15. CONVERSATION (POST /conversation)
+// ════════════════════════════════════════════════════
+let convHistory = [];
+
+async function sendConversation() {
+  const input = document.getElementById('conv-input');
+  const sendBtn = document.getElementById('conv-send-btn');
+  const msg = input.value.trim();
+  if (!msg || !session_id) return;
+
+  // Disable while processing
+  input.value = '';
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⟳';
+
+  // Show user message
+  appendConvMessage('user', msg);
+
+  // POST /conversation
+  const payload = {
+    message: msg,
+    context: {
+      results: backendResults,
+      input: userInput,
+      behavioral: behavioralAnswers
+    },
+    history: convHistory
+  };
+
+  let aiReply = '';
+  try {
+    const data = await apiPost(`/conversation/${session_id}`, payload);
+    aiReply = data.response || data.message || data.reply || 'Analysis received.';
+    convHistory.push({ role: 'user', content: msg });
+    convHistory.push({ role: 'assistant', content: aiReply });
+  } catch (err) {
+    // Offline: generate local AI response
+    aiReply = generateLocalConvResponse(msg);
+  }
+
+  appendConvMessage('ai', aiReply);
+  sendBtn.disabled = false;
+  sendBtn.textContent = '⟶ Ask';
+}
+
+function appendConvMessage(role, text) {
+  const container = document.getElementById('conv-messages');
+  const div = document.createElement('div');
+  div.className = `conv-msg ${role}`;
+  if (role === 'ai') {
+    div.innerHTML = `<span class="conv-sender">NIV AI</span><span class="conv-bubble">${text}</span>`;
+  } else {
+    div.innerHTML = `<span class="conv-bubble">${text}</span>`;
+  }
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function generateLocalConvResponse(question) {
+  const fr  = backendResults?.financial_reality || {};
+  const ra  = backendResults?.risk_assessment   || {};
+  const hc  = backendResults?.hidden_costs      || {};
+  const v   = backendResults?.verdict           || {};
+  const inp = userInput || {};
+
+  const q = question.toLowerCase();
+
+  if (q.includes('emi') || q.includes('monthly')) {
+    return `Your monthly EMI is ${fmt(fr.emi)}, representing ${((fr.emi_to_income_ratio || 0) * 100).toFixed(1)}% of your income. RBI advisory is <40%. Your monthly surplus post-EMI and expenses is ${fmt(fr.monthly_surplus)}.`;
+  }
+  if (q.includes('down') || q.includes('payment')) {
+    const pct = ((inp.down_payment || 0) / (inp.property_price || 1) * 100).toFixed(1);
+    return `Your down payment is ${fmt(inp.down_payment)} (${pct}% of property value). A higher down payment reduces loan amount, EMI, and risk score. RBI recommends minimum 20% — ${parseFloat(pct) >= 20 ? 'you meet this threshold.' : 'you are below this threshold.'}`;
+  }
+  if (q.includes('risk') || q.includes('score')) {
+    const triggered = ra.factors?.filter(f => f.triggered).length || 0;
+    return `Composite risk score: ${ra.composite_score}/100 (${ra.risk_label} RISK). ${triggered} of ${ra.factors?.length || 0} risk factors triggered. ${ra.risk_label === 'HIGH' ? 'High risk — address at least 2 factors before proceeding.' : ra.risk_label === 'MEDIUM' ? 'Moderate risk — proceed with caution, build emergency reserve.' : 'Low risk — financial parameters are within acceptable bounds.'}`;
+  }
+  if (q.includes('hidden') || q.includes('cost') || q.includes('gst') || q.includes('stamp')) {
+    return `True acquisition cost: ${fmt(hc.total_cost)} vs. base price ${fmt(hc.base_price)}. Breakdown: GST ${fmt(hc.gst)} + Stamp Duty ${fmt(hc.stamp_duty)} + Registration ${fmt(hc.registration)} = ${fmt((hc.gst || 0) + (hc.stamp_duty || 0) + (hc.registration || 0))} in additional costs (${(((hc.total_cost - hc.base_price) / hc.base_price) * 100).toFixed(1)}% above base).`;
+  }
+  if (q.includes('increase') && q.includes('down')) {
+    const newDown   = (inp.down_payment || 0) * 1.2;
+    const newLoan   = (inp.property_price || 0) - newDown;
+    const r         = ((inp.annual_interest_rate || 8.75) / 100) / 12;
+    const n         = (inp.tenure_years || 20) * 12;
+    const newEmi    = newLoan > 0 ? (newLoan * r * Math.pow(1+r,n)) / (Math.pow(1+r,n) - 1) : 0;
+    const newRatio  = newEmi / (inp.monthly_income || 1);
+    return `If down payment increases by 20% to ${fmt(Math.round(newDown))}, the new EMI would be ${fmt(Math.round(newEmi))} (${(newRatio * 100).toFixed(1)}% of income). This would ${newRatio < fr.emi_to_income_ratio ? 'reduce financial pressure' : 'not significantly change the ratio'}.`;
+  }
+  if (q.includes('verdict') || q.includes('decision') || q.includes('go') || q.includes('buy')) {
+    return `Verdict: ${v.decision} with ${((v.confidence || 0) * 100).toFixed(0)}% confidence. ${v.reasoning?.slice(0, 180) || 'See full analysis above.'}`;
+  }
+  if (q.includes('savings') || q.includes('emergency')) {
+    const monthsBuffer = Math.floor((inp.total_savings || 0) / Math.max(1, (inp.monthly_expenses || 0) + (fr.emi || 0)));
+    return `Total savings: ${fmt(inp.total_savings)}. This covers ${monthsBuffer} months of combined expenses + EMI. ${monthsBuffer >= 6 ? '✓ Meets the 6-month emergency reserve benchmark.' : '⚠ Below the recommended 6-month emergency reserve.'}`;
+  }
+
+  return `Based on your profile: EMI is ${fmt(fr.emi)} (${((fr.emi_to_income_ratio || 0) * 100).toFixed(1)}% of income), risk score ${ra.composite_score}/100, total cost ${fmt(hc.total_cost)}. Verdict: ${v.decision}. Ask me about EMI, hidden costs, risk factors, scenarios, or down payment strategies.`;
+}
+
+// ════════════════════════════════════════════════════
+// 16. REPORT DOWNLOAD
+// ════════════════════════════════════════════════════
+async function downloadReport() {
+  const btn = document.getElementById('btn-download-report');
+  btn.classList.add('loading-report');
+  btn.textContent = '⟳ Generating...';
+  logDebug('GET', `/report/${session_id}`, 'pending...');
+
+  try {
+    const res = await fetch(`${API_BASE}/report/${session_id}`, {
+      method: 'GET',
+      headers: authHeaders()
+    });
+    if (!res.ok) throw new Error('Report endpoint returned ' + res.status);
+    logDebug('GET', `/report/${session_id}`, `${res.status} OK`, true);
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `NIV-AI-Report-${session_id}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+    btn.classList.remove('loading-report');
+    btn.textContent = '✓ Downloaded';
+  } catch (err) {
+    logDebug('GET', `/report/${session_id}`, 'UNAVAILABLE', false);
+    btn.classList.remove('loading-report');
+    btn.textContent = '↓ Download Report';
+    showToast('Report download unavailable — backend offline');
+  }
+}
+
+// ════════════════════════════════════════════════════
+// 17. SESSION RESTORE
+// ════════════════════════════════════════════════════
+async function tryRestoreSession() {
+  const saved = sessionStorage.getItem('niv_session_id');
+  if (!saved) return;
+  try {
+    const data = await apiGet(`/session/${saved}`);
+    if (data && data.session_id) {
+      session_id = data.session_id;
+      if (data.results)          backendResults    = data.results;
+      if (data.user_input)       userInput         = data.user_input;
+      if (data.behavioral)       behavioralAnswers = data.behavioral;
+      if (data.results) {
+        transitionTo(STATES.DASHBOARD);
+        renderVerdict();
+      }
+    }
+  } catch (err) {
+    console.warn('Session restore failed:', err.message);
+  }
+}
+
+// ════════════════════════════════════════════════════
+// 18. BOOT
+// ════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  transitionTo(STATES.LOGIN);
+
+  // Save session_id to sessionStorage on state changes
+  const origTransition = transitionTo;
+  // Persist session on analysis complete
+  document.addEventListener('visibilitychange', () => {
+    if (session_id) sessionStorage.setItem('niv_session_id', session_id);
+  });
+
+  // Keyboard shortcut: Ctrl+D to toggle debug
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key === 'd') { e.preventDefault(); toggleDebug(); }
+  });
+
+  // Resize charts on window resize when dashboard is visible
+  window.addEventListener('resize', () => {
+    if (currentState === STATES.DASHBOARD && backendResults) {
+      clearTimeout(window._resizeTimer);
+      window._resizeTimer = setTimeout(renderAllCharts, 300);
+    }
+    if (currentState === STATES.LOADING) {
+      const canvas = document.getElementById('force-canvas');
+      if (canvas) {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = 280;
+      }
+    }
+  });
+});
+</script>
+</body>
+</html>
