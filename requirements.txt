@@ -31,5 +31,4 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.12
 
 # Utilities
-asyncio==3.4.3
 tenacity==9.0.0

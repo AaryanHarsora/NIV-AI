@@ -1,21 +1,37 @@
 """
-FastAPI application — the HTTP layer for NIV AI Home Buying Advisor.
+main.py — FastAPI application for NIV AI.
 
-This file is deliberately thin:
-- Receives requests, validates auth, calls orchestrator functions, returns responses.
-- No business logic. No financial math inside routes. No AI calls.
-- Routing and validation only.
+Deliberately thin:
+    - Receives requests, validates auth, calls orchestrator, returns responses.
+    - No business logic. No financial math. No AI calls inside routes.
+
+Route groups:
+    /health                     — health check
+    /chat/*                     — new chat-first flow (primary)
+    /session/*                  — session management
+    /analyze/*                  — legacy analysis pipeline (kept for compatibility)
+    /conversation/*             — follow-up turns
+    /roundtable/*               — WebSocket live discussion
+    /report/*                   — PDF download
 """
+
 import os
 import json
+import asyncio
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File
+from fastapi import (
+    FastAPI, Depends, HTTPException,
+    WebSocket, WebSocketDisconnect,
+    Query, UploadFile, File
+)
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
+# ─── Firebase ────────────────────────────────────────────────────────────────
 from firebase.firebase_admin import initialize_firebase
 from firebase_admin import auth as firebase_auth
 from auth.middleware import verify_token
@@ -27,10 +43,11 @@ from firebase.firestore_ops import (
     get_behavioral_intake,
     save_financial_inputs,
     save_simulation_results,
-    save_report_url,
-    get_report_url,
 )
+
+# ─── Schemas ─────────────────────────────────────────────────────────────────
 from schemas.schemas import (
+    # Existing
     UserInput,
     BehavioralIntake,
     ConversationMessage,
@@ -38,30 +55,41 @@ from schemas.schemas import (
     AnalysisResponse,
     SessionStartResponse,
     ConversationResponse,
-    ReportOutput,
-    PresentationOutput,
     VerdictOutput,
+    PropertyType,
+    BehavioralAnswer,
+    # New chat schemas
+    ChatMessageRequest,
+    ChatMessageResponse,
+    ChatStartResponse,
+    ChatStatus,
+    ChatRole,
+    ChatMessage,
+    ReportDownloadResponse,
 )
-from engines.india_defaults import calculate_true_total_cost
+
+# ─── Deterministic engines ────────────────────────────────────────────────────
+from engines.mumbai_costs import calculate_mumbai_true_cost
 from agents.deterministic.financial_reality import calculate_affordability
 from agents.deterministic.scenario_simulation import run_all_scenarios
 from agents.deterministic.risk_scorer import calculate_risk_score
+
+# ─── Chat agents ─────────────────────────────────────────────────────────────
+from agents.chat.intake_agent import IntakeAgent, CollectedData
+from agents.chat.question_engine import QuestionEngine
+
+# ─── PDF ─────────────────────────────────────────────────────────────────────
 from engines.pdf_generator import generate_pdf
-from storage.gcs_client import upload_pdf
 
 
-# ---------------------------------------------------------------------------
-# App initialization
-# ---------------------------------------------------------------------------
+# ─── App init ────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="NIV AI — Home Buying Advisor API",
-    description="Risk-aware home buying decision intelligence for Indian families",
-    version="1.0.0",
+    title="NIV AI — Mumbai Home Buying Advisor",
+    description="Risk-aware home buying decision intelligence for Mumbai families",
+    version="2.0.0",
 )
 
-# CORS — allow frontend origin. In development allow all origins.
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -70,356 +98,354 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Orchestrator — single instance, initialized once
-orchestrator = None
+# ─── Singletons ──────────────────────────────────────────────────────────────
+orchestrator    = None
+intake_agent    = None
+question_engine = None
+
+# In-memory chat sessions: session_id -> CollectedData
+# Same limitation as blackboards — single instance only
+# Fine for hackathon, fix with Firestore serialization for production
+_chat_sessions: dict[str, dict] = {}
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize Firebase and Orchestrator on app startup."""
-    global orchestrator
+    global orchestrator, intake_agent, question_engine
 
     try:
         initialize_firebase()
-        print("Firebase initialized")
+        print("[Startup] Firebase initialized")
     except Exception as e:
-        print(f"Firebase init failed: {e}")
+        print(f"[Startup] Firebase init failed (non-critical in dev): {e}")
 
     try:
         from agents.orchestration.orchestrator import Orchestrator
         orchestrator = Orchestrator()
-        print("Orchestrator initialized")
+        print("[Startup] Orchestrator initialized")
     except Exception as e:
-        print(f"Orchestrator init failed (Dev 2 code may not be ready): {e}")
+        print(f"[Startup] Orchestrator init failed: {e}")
+
+    try:
+        intake_agent    = IntakeAgent()
+        question_engine = QuestionEngine()
+        print("[Startup] Chat agents initialized")
+    except Exception as e:
+        print(f"[Startup] Chat agents init failed: {e}")
 
 
-# ---------------------------------------------------------------------------
-# Health check
-# ---------------------------------------------------------------------------
+# =============================================================================
+# HEALTH
+# =============================================================================
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "niv-ai-home-buying-advisor", "version": "1.0.0"}
-
-
-# ---------------------------------------------------------------------------
-# Session management
-# ---------------------------------------------------------------------------
-
-@app.post("/session/start", response_model=APIResponse)
-async def start_session(uid: str = Depends(verify_token)):
-    """Creates a new analysis session for the authenticated user."""
-    session_id = create_session(
-        user_id=uid,
-        title="New Analysis",
-        city="",
-        state="",
-    )
-    now = datetime.now(timezone.utc).isoformat()
-    return APIResponse(
-        success=True,
-        message="Session created",
-        data=SessionStartResponse(
-            session_id=session_id,
-            user_id=uid,
-            created_at=now,
-        ).model_dump(),
-    )
-
-
-@app.get("/session/{session_id}", response_model=APIResponse)
-async def get_session_route(session_id: str, uid: str = Depends(verify_token)):
-    """Retrieves a session by ID. User must own the session."""
-    session = get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.get("user_id") != uid:
-        raise HTTPException(status_code=403, detail="Access denied")
-    return APIResponse(success=True, message="Session retrieved", data=session)
-
-
-@app.get("/session/history/{user_id}", response_model=APIResponse)
-async def get_history_route(user_id: str, uid: str = Depends(verify_token)):
-    """Returns all sessions for a user, most recent first."""
-    if user_id != uid:
-        raise HTTPException(status_code=403, detail="Access denied")
-    sessions = get_session_history(user_id)
-    return APIResponse(success=True, message="History retrieved", data=sessions)
-
-
-# ---------------------------------------------------------------------------
-# Behavioral intake
-# ---------------------------------------------------------------------------
-
-@app.post("/behavioral/{session_id}", response_model=APIResponse)
-async def save_behavioral_route(
-    session_id: str,
-    intake: BehavioralIntake,
-    uid: str = Depends(verify_token),
-):
-    """Saves the 7 behavioral questionnaire answers for a session."""
-    session = get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.get("user_id") != uid:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    save_behavioral_intake(session_id, [a.model_dump() for a in intake.answers])
-    return APIResponse(success=True, message="Behavioral intake saved")
-
-
-# ---------------------------------------------------------------------------
-# Analysis — the main pipeline
-# ---------------------------------------------------------------------------
-
-@app.post("/analyze/{session_id}", response_model=APIResponse)
-async def analyze_route(
-    session_id: str,
-    user_input: UserInput,
-    uid: str = Depends(verify_token),
-):
-    """
-    Runs the full analysis pipeline:
-    1. Validate auth and session ownership
-    2. Save financial inputs to Firestore
-    3. Run deterministic agents (india defaults, financial reality, scenarios, risk score)
-    4. Bundle deterministic results
-    5. Get behavioral intake from Firestore
-    6. Call orchestrator.analyze() for AI agents
-    7. Return AnalysisResponse
-    """
-    session = get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.get("user_id") != uid:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    try:
-        # Save financial inputs
-        save_financial_inputs(session_id, user_input.model_dump())
-
-        # --- Run deterministic agents ---
-        loan_amount = user_input.property_price - user_input.down_payment
-        if loan_amount < 0:
-            loan_amount = 0.0
-
-        india_costs = calculate_true_total_cost(
-            base_price=user_input.property_price,
-            state=user_input.state,
-            property_type=user_input.property_type.value,
-            loan_amount=loan_amount,
-            area_sqft=user_input.area_sqft if user_input.area_sqft else 1000,
-        )
-
-        financial_reality = calculate_affordability(user_input)
-        all_scenarios = run_all_scenarios(user_input, financial_reality)
-        risk_score = calculate_risk_score(
-            financial_reality=financial_reality,
-            all_scenarios=all_scenarios,
-            age=user_input.age,
-            tenure_years=user_input.tenure_years,
-        )
-
-        # Bundle deterministic results for Dev 2's orchestrator
-        deterministic_results = {
-            "india_cost_breakdown": india_costs.model_dump(),
-            "financial_reality": financial_reality.model_dump(),
-            "all_scenarios": all_scenarios.model_dump(),
-            "risk_score": risk_score.model_dump(),
-        }
-
-        # Save to Firestore
-        save_simulation_results(session_id, deterministic_results)
-
-        # --- Call Dev 2's orchestrator ---
-        if orchestrator:
-            # Get behavioral intake from Firestore
-            intake_data = get_behavioral_intake(session_id)
-            answers = intake_data.get("answers", [])
-
-            behavioral_intake = BehavioralIntake(
-                session_id=session_id,
-                answers=answers,
-            )
-
-            analysis_response = await orchestrator.analyze(
-                session_id=session_id,
-                user_input=user_input,
-                behavioral_intake=behavioral_intake,
-                deterministic_results=deterministic_results,
-            )
-            return APIResponse(
-                success=True,
-                message="Analysis complete",
-                data=analysis_response.model_dump(),
-            )
-        else:
-            # Orchestrator not available — return deterministic results only
-            return APIResponse(
-                success=True,
-                message="Deterministic analysis complete (AI agents not available)",
-                data={
-                    "session_id": session_id,
-                    "financial_reality": financial_reality.model_dump(),
-                    "all_scenarios": all_scenarios.model_dump(),
-                    "risk_score": risk_score.model_dump(),
-                },
-            )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
-# Brochure analyzer — multimodal property detail extraction
-# ---------------------------------------------------------------------------
-
-@app.post("/analyze/brochure/{session_id}", response_model=APIResponse)
-async def analyze_brochure_route(
-    session_id: str,
-    file: UploadFile = File(...),
-    uid: str = Depends(verify_token),
-):
-    """
-    Accepts a property brochure image or PDF upload.
-    Uses Gemini Vision to extract property details and returns them
-    as structured data that the frontend uses to pre-fill the financial form.
-
-    Supported formats: JPEG, PNG, WebP, PDF
-    Maximum file size: 10MB
-
-    Dev 3 calls this when the user clicks Upload Brochure on the dashboard.
-    The returned fields map directly to the UserInput schema field names.
-    """
-    session = get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.get("user_id") != uid:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    allowed_types = {
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/heic",
-        "application/pdf"
+    return {
+        "status":  "healthy",
+        "service": "niv-ai-mumbai-advisor",
+        "version": "2.0.0",
+        "groq":    bool(os.getenv("GROQ_API_KEY")),
+        "chat_ready": intake_agent is not None,
     }
 
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file type: {file.content_type}. Please upload JPEG, PNG, WebP, or PDF."
-        )
 
-    file_bytes = await file.read()
+# =============================================================================
+# CHAT — primary flow
+# =============================================================================
 
-    if len(file_bytes) > 10 * 1024 * 1024:
-        raise HTTPException(
-            status_code=400,
-            detail="File too large. Maximum size is 10MB."
-        )
+@app.post("/chat/start", response_model=APIResponse)
+async def chat_start():
+    """
+    Creates a new chat session.
+    No auth required for hackathon demo — add verify_token dep for production.
+    Returns session_id and the opening message.
+    """
+    import uuid
+    session_id = str(uuid.uuid4())
+    now        = datetime.now(timezone.utc).isoformat()
 
-    try:
-        from agents.ai_reasoning.brochure_analyzer import BrochureAnalyzerAgent
-        analyzer = BrochureAnalyzerAgent()
-        result = await analyzer.analyze(file_bytes, file.content_type)
+    _chat_sessions[session_id] = {
+        "collected":   CollectedData(),
+        "history":     [],
+        "status":      ChatStatus.COLLECTING,
+        "created_at":  now,
+    }
 
-        return APIResponse(
-            success=True,
-            message="Brochure analyzed successfully",
-            data=result
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Brochure analysis failed: {str(e)}"
-        )
+    opening = question_engine.get_opening_message() if question_engine else (
+        "Hi! Tell me about the property you're looking at in Mumbai."
+    )
 
+    # Add opening message to history
+    _chat_sessions[session_id]["history"].append({
+        "role":      ChatRole.ASSISTANT,
+        "content":   opening,
+        "timestamp": now,
+    })
 
-# ---------------------------------------------------------------------------
-# Conversation — follow-up turns
-# ---------------------------------------------------------------------------
-
-@app.post("/conversation/{session_id}", response_model=APIResponse)
-async def conversation_route(
-    session_id: str,
-    message: ConversationMessage,
-    uid: str = Depends(verify_token),
-):
-    """Handles a follow-up message. Calls orchestrator.continue_conversation()."""
-    session = get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.get("user_id") != uid:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    if not orchestrator:
-        raise HTTPException(status_code=501, detail="AI agents not available")
-
-    try:
-        result = await orchestrator.continue_conversation(
+    return APIResponse(
+        success=True,
+        message="Chat session created",
+        data=ChatStartResponse(
             session_id=session_id,
-            message=message.message,
-        )
+            opening_message=opening,
+            created_at=now,
+        ).model_dump()
+    )
+
+
+@app.post("/chat/message", response_model=APIResponse)
+async def chat_message(req: ChatMessageRequest):
+    """
+    Process a user message in an existing chat session.
+
+    Flow:
+        1. Load session state
+        2. QuestionEngine pre-processes (skip detection, attempt tracking)
+        3. IntakeAgent extracts data and generates response
+        4. If ready → trigger full analysis pipeline async
+        5. Return response + progress
+    """
+    session_id = req.session_id
+
+    if session_id not in _chat_sessions:
+        raise HTTPException(status_code=404, detail="Chat session not found. Call /chat/start first.")
+
+    session   = _chat_sessions[session_id]
+    collected = session["collected"]
+    history   = session["history"]
+    now       = datetime.now(timezone.utc).isoformat()
+
+    # Add user message to history
+    history.append({
+        "role":      ChatRole.USER,
+        "content":   req.message,
+        "timestamp": now,
+    })
+
+    # ── QuestionEngine pre-process ────────────────────────────────────────────
+    pre = question_engine.pre_process(session_id, req.message, collected)
+    collected = pre["updated_collected"]
+
+    if pre["should_skip_llm"]:
+        # Deterministic response — no LLM needed
+        assistant_msg = pre["override_message"]
+        session["collected"] = collected
+
+        history.append({
+            "role":      ChatRole.ASSISTANT,
+            "content":   assistant_msg,
+            "timestamp": now,
+        })
+
+        progress = question_engine.get_progress(session_id, collected)
         return APIResponse(
             success=True,
-            message="Conversation processed",
-            data=result.model_dump(),
+            message="ok",
+            data=ChatMessageResponse(
+                session_id=session_id,
+                assistant_message=assistant_msg,
+                status=ChatStatus.COLLECTING,
+                progress_pct=progress["completion_pct"],
+                required_remaining=progress["required_remaining"],
+                ready=False,
+            ).model_dump()
+        )
+
+    # ── IntakeAgent processes message ─────────────────────────────────────────
+    if not intake_agent:
+        raise HTTPException(status_code=503, detail="Chat agent not ready")
+
+    try:
+        result = await intake_agent.process_message(
+            user_message=req.message,
+            conversation_history=history[:-1],
+            collected_data=collected
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Conversation failed: {str(e)}")
+        print(f"[IntakeAgent] LLM error: {e}")
+        result = {
+            "assistant_message": question_engine._get_question_text(
+                collected.next_question_field()
+            ) or "Could you tell me more about the property?",
+            "updated_collected": collected,
+            "ready": False,
+            "acknowledged": "",
+        }
+
+    collected     = result.get("updated_collected", collected)
+    assistant_msg = result.get("assistant_message", "")
+    session["collected"] = collected
+
+    if not assistant_msg:
+        assistant_msg = question_engine._get_question_text(
+            collected.next_question_field()
+        ) or "Could you tell me more?"
+
+    # Strip [READY_FOR_ANALYSIS] tag from the displayed message
+    display_msg = assistant_msg.replace("[READY_FOR_ANALYSIS]", "").strip()
+
+    history.append({
+        "role":      ChatRole.ASSISTANT,
+        "content":   display_msg,
+        "timestamp": now,
+    })
+
+    progress = question_engine.get_progress(session_id, collected)
+    ready    = result["ready"]
+
+    # ── Trigger analysis if ready ─────────────────────────────────────────────
+    if ready:
+        session["status"] = ChatStatus.ANALYZING
+
+        # Apply defaults to any missing optional fields
+        final_collected = question_engine.apply_analysis_defaults(collected)
+        session["collected"] = final_collected
+
+        # Fire analysis pipeline in background
+        # Frontend will poll /chat/status/{session_id} or connect to
+        # /chat/roundtable/{session_id} WebSocket for live updates
+        asyncio.create_task(
+            _run_analysis_pipeline(session_id, final_collected)
+        )
+
+        analysis_msg = question_engine.get_analysis_message(final_collected)
+        history.append({
+            "role":      ChatRole.ASSISTANT,
+            "content":   analysis_msg,
+            "timestamp": now,
+        })
+
+        return APIResponse(
+            success=True,
+            message="ok",
+            data=ChatMessageResponse(
+                session_id=session_id,
+                assistant_message=display_msg + "\n\n" + analysis_msg,
+                status=ChatStatus.ANALYZING,
+                progress_pct=100,
+                required_remaining=0,
+                ready=True,
+            ).model_dump()
+        )
+
+    return APIResponse(
+        success=True,
+        message="ok",
+        data=ChatMessageResponse(
+            session_id=session_id,
+            assistant_message=display_msg,
+            status=ChatStatus.COLLECTING,
+            progress_pct=progress["completion_pct"],
+            required_remaining=progress["required_remaining"],
+            ready=False,
+        ).model_dump()
+    )
 
 
-# ---------------------------------------------------------------------------
-# WebSocket — live roundtable streaming
-# ---------------------------------------------------------------------------
-
-@app.websocket("/roundtable/{session_id}")
-async def roundtable_ws(
-    websocket: WebSocket,
-    session_id: str,
-    token: str = Query(""),
-):
+@app.get("/chat/status/{session_id}", response_model=APIResponse)
+async def chat_status(session_id: str):
     """
-    WebSocket endpoint for live roundtable streaming.
-    Dev 3 connects as: ws://<host>/roundtable/<session_id>?token=<firebase_token>
+    Returns current status of a chat session.
+    Frontend polls this after analysis is triggered to know when report is ready.
     """
-    # Verify auth token
-    try:
-        decoded = firebase_auth.verify_id_token(token)
-        user_uid = decoded["uid"]
-    except Exception:
-        await websocket.close(code=4001, reason="Invalid token")
+    if session_id not in _chat_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session  = _chat_sessions[session_id]
+    collected = session["collected"]
+    progress  = question_engine.get_progress(session_id, collected)
+
+    return APIResponse(
+        success=True,
+        message="ok",
+        data={
+            "session_id":         session_id,
+            "status":             session["status"],
+            "progress_pct":       progress["completion_pct"],
+            "required_remaining": progress["required_remaining"],
+            "report_url":         session.get("report_url"),
+            "error":              session.get("error"),
+        }
+    )
+
+
+@app.get("/chat/history/{session_id}", response_model=APIResponse)
+async def chat_history(session_id: str):
+    """Returns the full conversation history for a session."""
+    if session_id not in _chat_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = _chat_sessions[session_id]
+    return APIResponse(
+        success=True,
+        message="ok",
+        data={
+            "session_id": session_id,
+            "messages":   session["history"],
+            "status":     session["status"],
+        }
+    )
+
+
+# =============================================================================
+# CHAT WebSocket — live roundtable streaming
+# =============================================================================
+
+@app.websocket("/chat/roundtable/{session_id}")
+async def chat_roundtable_ws(websocket: WebSocket, session_id: str):
+    """
+    WebSocket for the live roundtable discussion.
+    Frontend connects after /chat/message returns ready=True.
+    Streams Marcus, Zara, Soren messages in real time.
+    No auth for hackathon — add token query param for production.
+    """
+    if session_id not in _chat_sessions:
+        await websocket.close(code=4004, reason="Session not found")
         return
 
-    # Verify session ownership
-    session = get_session(session_id)
-    if not session or session.get("user_id") != user_uid:
-        await websocket.close(code=4003, reason="Access denied")
-        return
+    session = _chat_sessions[session_id]
 
     await websocket.accept()
 
+    # Wait for analysis to complete before starting roundtable
+    # Poll with timeout — max 120 seconds
+    wait_seconds = 0
+    while session["status"] == ChatStatus.ANALYZING and wait_seconds < 120:
+        await asyncio.sleep(2)
+        wait_seconds += 2
+
+    if session["status"] == ChatStatus.ERROR:
+        await websocket.send_text(json.dumps({
+            "type":      "error",
+            "message":   session.get("error", "Analysis failed"),
+            "recoverable": False,
+        }))
+        await websocket.close()
+        return
+
     if not orchestrator:
         await websocket.send_text(json.dumps({
-            "type": "error",
+            "type":    "error",
             "message": "Roundtable engine not available",
             "recoverable": False,
         }))
         await websocket.close()
         return
 
+    session["status"] = ChatStatus.ROUNDTABLE
+
     try:
         await orchestrator.run_roundtable(
             session_id=session_id,
             websocket=websocket,
         )
+        session["status"] = ChatStatus.COMPLETE
     except WebSocketDisconnect:
-        print(f"WebSocket disconnected: session {session_id}")
+        print(f"[WS] Client disconnected: {session_id}")
     except Exception as e:
         try:
             await websocket.send_text(json.dumps({
-                "type": "error",
+                "type":    "error",
                 "message": str(e),
                 "recoverable": False,
             }))
@@ -432,184 +458,338 @@ async def roundtable_ws(
             pass
 
 
-# ---------------------------------------------------------------------------
-# PDF report
-# ---------------------------------------------------------------------------
+# =============================================================================
+# REPORT — PDF download
+# =============================================================================
 
-@app.get("/report/{session_id}", response_model=APIResponse)
-async def get_report_route(session_id: str, uid: str = Depends(verify_token)):
+@app.get("/report/{session_id}")
+async def get_report(session_id: str):
     """
-    Generates or retrieves a PDF report for the session.
-    Returns a signed GCS URL valid for 7 days.
+    Generates and returns the PDF report as a direct download.
+    No GCS — bytes returned directly in response.
+    Frontend: window.open('/report/{session_id}') to trigger download.
     """
+    if session_id not in _chat_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session = _chat_sessions[session_id]
+
+    if session["status"] not in (ChatStatus.COMPLETE, ChatStatus.ROUNDTABLE):
+        raise HTTPException(
+            status_code=400,
+            detail="Analysis not complete yet. Wait for roundtable to finish."
+        )
+
+    # Get presentation and verdict from orchestrator blackboard
+    if not orchestrator or session_id not in orchestrator._blackboards:
+        raise HTTPException(
+            status_code=400,
+            detail="Analysis data not found. Run full analysis first."
+        )
+
+    bb_state = orchestrator._blackboards[session_id].state
+
+    if not bb_state.verdict or not bb_state.presentation:
+        raise HTTPException(
+            status_code=400,
+            detail="Verdict not ready. Complete the roundtable first."
+        )
+
+    try:
+        pdf_bytes = generate_pdf(
+            session_id=session_id,
+            presentation_output=bb_state.presentation,
+            verdict_output=bb_state.verdict,
+            mumbai_costs=session.get("mumbai_costs"),
+            collected_data=session["collected"],
+        )
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="NIV_Report_{session_id[:8]}.pdf"',
+                "Content-Length": str(len(pdf_bytes)),
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
+
+
+# =============================================================================
+# LEGACY ROUTES — kept for backward compatibility
+# =============================================================================
+
+@app.post("/session/start", response_model=APIResponse)
+async def start_session(uid: str = Depends(verify_token)):
+    session_id = create_session(user_id=uid, title="New Analysis", city="Mumbai", state="maharashtra")
+    now = datetime.now(timezone.utc).isoformat()
+    return APIResponse(
+        success=True,
+        message="Session created",
+        data=SessionStartResponse(session_id=session_id, user_id=uid, created_at=now).model_dump()
+    )
+
+
+@app.get("/session/{session_id}", response_model=APIResponse)
+async def get_session_route(session_id: str, uid: str = Depends(verify_token)):
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.get("user_id") != uid:
         raise HTTPException(status_code=403, detail="Access denied")
+    return APIResponse(success=True, message="ok", data=session)
 
-    # Check for existing report
-    existing_url = get_report_url(session_id)
-    if existing_url:
-        return APIResponse(
-            success=True,
-            message="Report already generated",
-            data=ReportOutput(
-                session_id=session_id,
-                gcs_url=existing_url,
-                generated_at=datetime.now(timezone.utc).isoformat(),
-            ).model_dump(),
-        )
 
-    # Get presentation and verdict from Firestore simulation results
-    from firebase.firebase_admin import db as firestore_db
-    sim_doc = firestore_db.collection("sessions").document(session_id) \
-        .collection("simulation_results").document("latest").get()
-    verdict_doc = firestore_db.collection("sessions").document(session_id) \
-        .collection("verdict").document("latest").get()
+@app.get("/session/history/{user_id}", response_model=APIResponse)
+async def get_history_route(user_id: str, uid: str = Depends(verify_token)):
+    if user_id != uid:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return APIResponse(success=True, message="ok", data=get_session_history(user_id))
 
-    if not verdict_doc.exists:
-        raise HTTPException(
-            status_code=400,
-            detail="Analysis not complete. Run /analyze and roundtable first."
-        )
 
+@app.websocket("/roundtable/{session_id}")
+async def roundtable_ws(
+    websocket: WebSocket,
+    session_id: str,
+    token: str = Query(""),
+):
     try:
-        verdict_data = verdict_doc.to_dict()
-        verdict_output = VerdictOutput(**verdict_data)
+        decoded  = firebase_auth.verify_id_token(token)
+        user_uid = decoded["uid"]
+    except Exception:
+        await websocket.close(code=4001, reason="Invalid token")
+        return
 
-        session_data = get_session(session_id)
-        if not session_data:
-            raise HTTPException(status_code=404, detail="Session not found")
+    session = get_session(session_id)
+    if not session or session.get("user_id") != user_uid:
+        await websocket.close(code=4003, reason="Access denied")
+        return
 
-        # Try to get presentation from orchestrator's in-memory state
-        presentation_output = None
-        if orchestrator and session_id in orchestrator._blackboards:
-            bb_state = orchestrator._blackboards[session_id].state
-            if bb_state.presentation:
-                presentation_output = bb_state.presentation
-
-        if not presentation_output:
-            raise HTTPException(
-                status_code=400,
-                detail="Presentation data not available. Run full analysis with roundtable first.",
-            )
-
-        pdf_bytes = generate_pdf(session_id, presentation_output, verdict_output)
-        gcs_url = upload_pdf(session_id, pdf_bytes)
-        save_report_url(session_id, gcs_url)
-
-        return APIResponse(
-            success=True,
-            message="Report generated",
-            data=ReportOutput(
-                session_id=session_id,
-                gcs_url=gcs_url,
-                generated_at=datetime.now(timezone.utc).isoformat(),
-            ).model_dump(),
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
-# WebSocket test route — REMOVE BEFORE SUBMISSION
-# This is a dev-only unauthenticated route for testing the roundtable locally.
-# ---------------------------------------------------------------------------
-
-@app.websocket("/ws-test")
-async def roundtable_test_ws(websocket: WebSocket):
     await websocket.accept()
+
     if not orchestrator:
-        await websocket.send_text(json.dumps({
-            "type": "error",
-            "message": "Orchestrator not ready",
-            "recoverable": False
-        }))
+        await websocket.send_text(json.dumps({"type": "error", "message": "Not available", "recoverable": False}))
         await websocket.close()
         return
 
-    # Seed test session if not already in memory
-    if "ws_test_session" not in orchestrator._blackboards:
-        from schemas.schemas import UserInput, PropertyType, BehavioralIntake, BehavioralAnswer
-        from engines.india_defaults import calculate_true_total_cost
-        from agents.deterministic.financial_reality import calculate_affordability
-        from agents.deterministic.scenario_simulation import run_all_scenarios
-        from agents.deterministic.risk_scorer import calculate_risk_score
+    try:
+        await orchestrator.run_roundtable(session_id=session_id, websocket=websocket)
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await websocket.send_text(json.dumps({"type": "error", "message": str(e), "recoverable": False}))
+        except Exception:
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
-        user_input = UserInput(
-            monthly_income=150000,
-            monthly_expenses=60000,
-            total_savings=1500000,
-            down_payment=1500000,
-            property_price=8000000,
-            tenure_years=20,
-            annual_interest_rate=0.085,
-            age=32,
-            state="maharashtra",
-            property_type=PropertyType.READY_TO_MOVE,
-            area_sqft=850,
-            session_id="ws_test_session"
-        )
 
-        india_costs = calculate_true_total_cost(
-            base_price=user_input.property_price,
-            state=user_input.state,
-            property_type=user_input.property_type.value,
-            loan_amount=user_input.property_price - user_input.down_payment,
-            area_sqft=user_input.area_sqft
-        )
-        financial = calculate_affordability(user_input)
-        scenarios = run_all_scenarios(user_input, financial)
-        risk = calculate_risk_score(financial, scenarios, user_input.age, user_input.tenure_years)
+# =============================================================================
+# INTERNAL — analysis pipeline (called via asyncio.create_task)
+# =============================================================================
 
-        behavioral_intake = BehavioralIntake(
-            session_id="ws_test_session",
-            answers=[
-                BehavioralAnswer(
-                    question_id=1,
-                    question="Are you feeling time pressure to buy?",
-                    answer="Yes, prices are rising fast",
-                    bias_signal="FOMO"
-                ),
-                BehavioralAnswer(
-                    question_id=2,
-                    question="Have you already emotionally committed to a specific property?",
-                    answer="Yes, we really love this apartment",
-                    bias_signal="anchoring"
-                )
-            ]
-        )
+async def _run_analysis_pipeline(session_id: str, collected: CollectedData):
+    """
+    Runs the full analysis pipeline after intake is complete.
+    Called as a background task — never blocks the HTTP response.
 
-        deterministic_results = {
-            "india_cost_breakdown": india_costs.model_dump(),
-            "financial_reality": financial.model_dump(),
-            "all_scenarios": scenarios.model_dump(),
-            "risk_score": risk.model_dump()
-        }
-
-        await orchestrator.analyze(
-            session_id="ws_test_session",
-            user_input=user_input,
-            behavioral_intake=behavioral_intake,
-            deterministic_results=deterministic_results
-        )
+    Steps:
+        1. Build UserInput from CollectedData
+        2. Run mumbai_costs (deterministic)
+        3. Run financial_reality, scenarios, risk_score (deterministic)
+        4. Build behavioral answers from conversation (heuristic)
+        5. Call orchestrator.analyze() (AI agents)
+        6. Store results for roundtable and report
+    """
+    session = _chat_sessions.get(session_id)
+    if not session:
+        return
 
     try:
-        await orchestrator.run_roundtable("ws_test_session", websocket)
+        # ── Step 1: Build UserInput ───────────────────────────────────────────
+        loan_amount = max(
+            collected.property_price - collected.down_payment_available, 0
+        )
+
+        user_input = UserInput(
+            monthly_income       = collected.monthly_income,
+            monthly_expenses     = collected.monthly_expenses or collected.monthly_income * 0.4,
+            total_savings        = collected.total_savings,
+            down_payment         = collected.down_payment_available,
+            property_price       = collected.property_price,
+            tenure_years         = collected.tenure_years or 20,
+            annual_interest_rate = collected.annual_interest_rate or 0.0875,
+            age                  = collected.age,
+            state                = "maharashtra",
+            property_type        = PropertyType(collected.property_type or "ready_to_move"),
+            area_sqft            = collected.area_sqft,
+            session_id           = session_id,
+        )
+
+        # ── Step 2: Mumbai costs ──────────────────────────────────────────────
+        mumbai_costs = calculate_mumbai_true_cost(
+            base_price       = collected.property_price,
+            area_sqft        = collected.area_sqft,
+            floor_number     = collected.floor_number or 5,
+            property_type    = collected.property_type or "ready_to_move",
+            facing           = collected.facing or "internal",
+            parking_included = collected.parking_included or False,
+            parking_cost     = collected.parking_cost or 300000,
+            loan_amount      = loan_amount,
+            locality         = collected.locality or "mumbai",
+            owner_gender     = collected.owner_gender or "male",
+        )
+
+        # Store for PDF generation later
+        session["mumbai_costs"] = mumbai_costs
+
+        # ── Step 3: Deterministic pipeline ───────────────────────────────────
+        financial_reality = calculate_affordability(user_input)
+        all_scenarios     = run_all_scenarios(user_input, financial_reality)
+        risk_score        = calculate_risk_score(
+            financial_reality=financial_reality,
+            all_scenarios=all_scenarios,
+            age=user_input.age,
+            tenure_years=user_input.tenure_years,
+        )
+
+        # ── Step 4: Build behavioral intake from conversation ─────────────────
+        # Infer behavioral signals from what the user said during intake
+        history        = session.get("history", [])
+        user_messages  = [m["content"] for m in history if m["role"] == ChatRole.USER]
+        conversation_text = " ".join(user_messages).lower()
+
+        behavioral_answers = _infer_behavioral_answers(
+            conversation_text, session_id, collected
+        )
+
+        behavioral_intake = BehavioralIntake(
+            session_id=session_id,
+            answers=behavioral_answers,
+        )
+
+        # ── Step 5: AI orchestrator ───────────────────────────────────────────
+        deterministic_results = {
+            "india_cost_breakdown": {
+                # Map mumbai_costs fields to existing india_cost_breakdown schema
+                # so the existing agents don't need changes
+                "base_price":           mumbai_costs.base_price,
+                "stamp_duty":           mumbai_costs.stamp_duty,
+                "stamp_duty_rate":      0.05,
+                "registration_fee":     mumbai_costs.registration_fee,
+                "gst":                  mumbai_costs.gst,
+                "gst_applicable":       mumbai_costs.is_under_construction,
+                "maintenance_deposit":  mumbai_costs.maintenance_deposit,
+                "loan_processing_fee":  mumbai_costs.loan_processing_fee,
+                "legal_charges":        mumbai_costs.total_legal_costs,
+                "true_total_cost":      mumbai_costs.true_total_acquisition_cost,
+                "tax_benefit_80c":      150000.0,
+                "tax_benefit_24b":      200000.0,
+            },
+            "financial_reality": financial_reality.model_dump(),
+            "all_scenarios":     all_scenarios.model_dump(),
+            "risk_score":        risk_score.model_dump(),
+        }
+
+        if orchestrator:
+            await orchestrator.analyze(
+                session_id=session_id,
+                user_input=user_input,
+                behavioral_intake=behavioral_intake,
+                deterministic_results=deterministic_results,
+            )
+            print(f"[Pipeline] Analysis complete for session {session_id}")
+        else:
+            print(f"[Pipeline] Orchestrator not available — deterministic only")
+
+        # Analysis done — roundtable can now start
+        session["status"] = ChatStatus.ROUNDTABLE
+
     except Exception as e:
-        await websocket.send_text(json.dumps({
-            "type": "error",
-            "message": str(e),
-            "recoverable": False
-        }))
+        print(f"[Pipeline] Error for session {session_id}: {e}")
+        session["status"] = ChatStatus.ERROR
+        session["error"]  = str(e)
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+def _infer_behavioral_answers(
+    conversation_text: str,
+    session_id: str,
+    collected: CollectedData,
+) -> list:
+    """
+    Infer behavioral bias signals from the conversation.
+    Heuristic — not a survey. Looks for keywords that indicate
+    FOMO, anchoring, social pressure, optimism bias, denial.
+    Returns a list of BehavioralAnswer objects.
+    """
+    answers = []
+
+    # FOMO signals
+    fomo_keywords = ["urgent", "last", "going fast", "price rising", "won't last",
+                     "everyone buying", "limited", "hurry", "deadline"]
+    fomo_detected = any(k in conversation_text for k in fomo_keywords)
+    answers.append(BehavioralAnswer(
+        question_id=1,
+        question="Are you feeling time pressure to buy?",
+        answer="Yes, prices are rising and I feel urgency" if fomo_detected else "No particular urgency",
+        bias_signal="FOMO"
+    ))
+
+    # Emotional commitment / anchoring
+    anchor_keywords = ["love this", "dream home", "perfect", "already decided",
+                       "set my heart", "this is the one", "fell in love"]
+    anchored = any(k in conversation_text for k in anchor_keywords)
+    answers.append(BehavioralAnswer(
+        question_id=2,
+        question="Have you emotionally committed to this specific property?",
+        answer="Yes, I'm very attached to this property" if anchored else "Still evaluating options",
+        bias_signal="anchoring"
+    ))
+
+    # Social pressure
+    social_keywords = ["friends bought", "everyone has", "colleague", "family pressure",
+                       "parents want", "relatives bought", "neighbour"]
+    social_pressure = any(k in conversation_text for k in social_keywords)
+    answers.append(BehavioralAnswer(
+        question_id=3,
+        question="Is social or family pressure influencing this decision?",
+        answer="Yes, family and friends have been buying" if social_pressure else "No significant social pressure",
+        bias_signal="social_pressure"
+    ))
+
+    # Optimism bias — stretching budget
+    stretch_keywords = ["will get promoted", "income will grow", "bonus expected",
+                        "stretch", "manage somehow", "figure it out"]
+    optimistic = any(k in conversation_text for k in stretch_keywords)
+    answers.append(BehavioralAnswer(
+        question_id=4,
+        question="Are you counting on future income growth to make this work?",
+        answer="Yes, expecting significant income growth" if optimistic else "Working with current income",
+        bias_signal="optimism_bias"
+    ))
+
+    # Denial / risk blindness
+    denial_keywords = ["job is secure", "nothing will go wrong", "i'll be fine",
+                       "won't lose job", "stable job", "government job"]
+    denial = any(k in conversation_text for k in denial_keywords)
+    answers.append(BehavioralAnswer(
+        question_id=5,
+        question="Have you considered what happens if your income drops?",
+        answer="Not really, my job feels very secure" if denial else "Yes, I've thought about downside scenarios",
+        bias_signal="denial"
+    ))
+
+    return answers
+
+
+# =============================================================================
+# ENTRY POINT
+# =============================================================================
 
 if __name__ == "__main__":
     import uvicorn

@@ -6,7 +6,40 @@ No imports from Dev 2's files.
 from schemas.schemas import (
     UserInput, FinancialRealityOutput, AffordabilityStatus, IndiaCostBreakdown
 )
-from engines.india_defaults import calculate_true_total_cost
+from engines.mumbai_costs import calculate_mumbai_true_cost
+
+
+def calculate_true_total_cost(base_price, state, property_type, loan_amount, area_sqft=1000):
+    """
+    Shim that maps the old india_defaults interface to the new mumbai_costs engine.
+    Called by calculate_affordability below — keeps the rest of the file unchanged.
+    """
+    result = calculate_mumbai_true_cost(
+        base_price=base_price,
+        area_sqft=area_sqft,
+        floor_number=5,
+        property_type=property_type,
+        facing="internal",
+        parking_included=False,
+        parking_cost=300000,
+        loan_amount=loan_amount,
+        locality="mumbai",
+    )
+    # Return as IndiaCostBreakdown so downstream agents don't break
+    return IndiaCostBreakdown(
+        base_price=result.base_price,
+        stamp_duty=result.stamp_duty,
+        stamp_duty_rate=0.05,
+        registration_fee=result.registration_fee,
+        gst=result.gst,
+        gst_applicable=result.is_under_construction,
+        maintenance_deposit=result.maintenance_deposit,
+        loan_processing_fee=result.loan_processing_fee,
+        legal_charges=result.total_legal_costs,
+        true_total_cost=result.true_total_acquisition_cost,
+        tax_benefit_80c=150000.0,
+        tax_benefit_24b=200000.0,
+    )
 
 
 def _calculate_emi(principal: float, annual_rate: float, tenure_years: int) -> float:

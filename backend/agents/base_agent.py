@@ -6,11 +6,18 @@ ContextContinuity, DecisionSynthesizer, and all three Roundtable
 personas) inherits from this class.
 
 Routing logic:
-    USE_OLLAMA=true  -> calls local Ollama (llama3.2:3b by default)
-    USE_OLLAMA=false -> calls Gemini 2.0 Flash via Google AI SDK
+    All agents use Groq (free tier, no credit card required).
+    Two model tiers:
+        FAST  — llama-3.1-8b-instant   (all agents except synthesizer)
+        SMART — llama-3.3-70b-versatile (DecisionSynthesizer only)
 
-Both paths share the same JSON parsing, retry logic, and prompt
-builder so switching between them requires only a .env change.
+    Fallback: if Groq is down or rate-limited, falls back to local
+    Ollama automatically so development never hard-stops.
+
+Setup:
+    1. Sign up free at console.groq.com
+    2. Create an API key (no credit card needed)
+    3. Add to .env:  GROQ_API_KEY=gsk_xxxx
 """
 
 import json
@@ -23,46 +30,43 @@ from typing import AsyncGenerator
 
 load_dotenv()
 
-# Read once at module level so every agent instance shares the same config.
-# Defaulting USE_OLLAMA to true means local dev works out of the box
-# without needing a Gemini key configured.
-USE_OLLAMA = os.getenv("USE_OLLAMA", "true").lower() == "true"
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+# ─── Provider config ─────────────────────────────────────────────────────────
+GROQ_API_KEY      = os.getenv("GROQ_API_KEY", "")
+GROQ_BASE_URL     = "https://api.groq.com/openai/v1/chat/completions"
+
+# Fast model  — used by every agent except DecisionSynthesizer
+# 14,400 free requests/day, ~500 tokens/sec
+GROQ_FAST_MODEL   = os.getenv("GROQ_FAST_MODEL",  "llama-3.1-8b-instant")
+
+# Smart model — used only by DecisionSynthesizer for the full audit report
+# 1,000 free requests/day, better reasoning depth
+GROQ_SMART_MODEL  = os.getenv("GROQ_SMART_MODEL", "llama-3.3-70b-versatile")
+
+# Ollama fallback (already running locally — zero extra setup)
+OLLAMA_BASE_URL   = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL      = os.getenv("OLLAMA_MODEL",    "llama3.1:8b")
+
+# Set USE_OLLAMA=true in .env to force local Ollama (offline dev)
+USE_OLLAMA        = os.getenv("USE_OLLAMA", "false").lower() == "true"
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 class BaseAgent:
 
-    def __init__(self, name: str, persona: str, system_prompt: str):
-        self.name = name
-        self.persona = persona
-        self.system_prompt = system_prompt
+    def __init__(
+        self,
+        name: str,
+        persona: str,
+        system_prompt: str,
+        use_smart_model: bool = False   # only DecisionSynthesizer sets True
+    ):
+        self.name             = name
+        self.persona          = persona
+        self.system_prompt    = system_prompt
+        self.use_smart_model  = use_smart_model
 
-        # Gemini model is only initialised when USE_OLLAMA=false.
-        # This avoids import errors on machines without the SDK and
-        # avoids burning API quota during local Ollama development.
-        self._gemini_model = None
-        if not USE_OLLAMA:
-            self._init_gemini()
-
-    def _init_gemini(self):
-        """Initialise the Gemini 2.0 Flash model for this agent instance."""
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=GEMINI_API_KEY)
-            self._gemini_model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash",
-                system_instruction=self.system_prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.1,
-                    max_output_tokens=2048,
-                )
-            )
-            print(f"[{self.name}] Gemini 2.0 Flash initialised")
-        except Exception as e:
-            print(f"[{self.name}] Gemini init failed: {e}")
-            raise
+        # Resolved at init so every call() knows which model to use
+        self._groq_model = GROQ_SMART_MODEL if use_smart_model else GROQ_FAST_MODEL
 
     # -------------------------------------------------------------------------
     # Public call interface — all agents use this
@@ -74,55 +78,92 @@ class BaseAgent:
     )
     async def call(self, prompt: str) -> dict:
         """
-        Send a prompt to the configured LLM and return a parsed dict.
-        Retries up to 3 times with exponential backoff on any failure.
-        On Gemini, a second attempt with a stricter JSON instruction is
-        made automatically before the retry logic escalates.
+        Send a prompt to Groq and return a parsed dict.
+        Falls back to Ollama if USE_OLLAMA=true or if Groq fails.
+        Retries up to 3 times with exponential backoff.
         """
         if USE_OLLAMA:
             return await self._call_ollama(prompt)
-        return await self._call_gemini(prompt)
 
-    # -------------------------------------------------------------------------
-    # Gemini path
-    # -------------------------------------------------------------------------
-
-    async def _call_gemini(self, prompt: str) -> dict:
-        """
-        Call Gemini 2.0 Flash and parse the response as JSON.
-        If the first response is not valid JSON, a second attempt is made
-        with an explicit instruction to return only raw JSON.
-        """
         try:
-            response = await asyncio.to_thread(
-                self._gemini_model.generate_content, prompt
-            )
-            return self._parse_json(response.text)
+            return await self._call_groq(prompt)
+        except Exception as e:
+            print(f"[{self.name}] Groq failed ({e}), falling back to Ollama")
+            return await self._call_ollama(prompt)
 
+    # -------------------------------------------------------------------------
+    # Groq path
+    # -------------------------------------------------------------------------
+
+    async def _call_groq(self, prompt: str) -> dict:
+        """
+        Call Groq API (OpenAI-compatible endpoint) and parse response as JSON.
+        Uses the fast model by default, smart model for the synthesizer.
+        On invalid JSON, retries once with a stricter formatting instruction.
+        """
+        if not GROQ_API_KEY:
+            raise ValueError(
+                "GROQ_API_KEY not set. Get a free key at console.groq.com"
+            )
+
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type":  "application/json"
+        }
+
+        payload = {
+            "model": self._groq_model,
+            "messages": [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user",   "content": prompt}
+            ],
+            "temperature": 0.1,
+            "max_tokens":  2048,
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                GROQ_BASE_URL,
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+            data    = response.json()
+            content = data["choices"][0]["message"]["content"]
+
+        # First parse attempt
+        try:
+            return self._parse_json(content)
         except ValueError:
-            # First attempt produced invalid JSON. Give the model one more
-            # chance with a much stricter formatting instruction appended.
+            # Second attempt — append strict JSON instruction
             strict_prompt = (
                 prompt
-                + "\n\nCRITICAL FORMATTING RULE: Your previous response "
-                "contained invalid JSON. This time respond with ONLY a raw "
-                "JSON object. Start your response with { and end with }. "
-                "No markdown fences, no backticks, no explanation, no text "
-                "of any kind outside the JSON object."
+                + "\n\nCRITICAL: Your previous response contained invalid JSON. "
+                "Respond with ONLY a raw JSON object. "
+                "Start with { and end with }. "
+                "No markdown, no backticks, no explanation, nothing outside the JSON."
             )
-            response = await asyncio.to_thread(
-                self._gemini_model.generate_content, strict_prompt
-            )
-            return self._parse_json(response.text)
+            payload["messages"][1]["content"] = strict_prompt
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    GROQ_BASE_URL,
+                    headers=headers,
+                    json=payload
+                )
+                response.raise_for_status()
+                data    = response.json()
+                content = data["choices"][0]["message"]["content"]
+
+            return self._parse_json(content)
 
     # -------------------------------------------------------------------------
-    # Ollama path
+    # Ollama fallback path (unchanged from original)
     # -------------------------------------------------------------------------
 
     async def _call_ollama(self, prompt: str) -> dict:
         """
-        Call the local Ollama server and parse the response as JSON.
-        Uses a non-streaming request so the full response arrives at once.
+        Call local Ollama server. Used as fallback or when USE_OLLAMA=true.
         """
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
@@ -131,9 +172,9 @@ class BaseAgent:
                     "model": OLLAMA_MODEL,
                     "messages": [
                         {"role": "system", "content": self.system_prompt},
-                        {"role": "user", "content": prompt}
+                        {"role": "user",   "content": prompt}
                     ],
-                    "stream": False,
+                    "stream":  False,
                     "options": {
                         "temperature": 0.1,
                         "num_predict": 2048
@@ -145,39 +186,66 @@ class BaseAgent:
             return self._parse_json(data["message"]["content"])
 
     # -------------------------------------------------------------------------
-    # Streaming — used by roundtable agents for the live discussion feed
+    # Streaming — used by roundtable DiscussionEngine
     # -------------------------------------------------------------------------
 
     async def stream_call(self, prompt: str) -> AsyncGenerator[str, None]:
         """
-        Streaming variant used by the DiscussionEngine to push roundtable
-        messages to the WebSocket as they are generated.
-
-        Ollama: real token-by-token streaming.
-        Gemini: full response fetched then yielded in small chunks to
-                simulate a streaming feel in the frontend without requiring
-                the Gemini streaming API.
+        Streaming variant for the live roundtable WebSocket feed.
+        Groq supports real token streaming via SSE.
+        Falls back to Ollama streaming if USE_OLLAMA=true.
         """
         if USE_OLLAMA:
             async for chunk in self._stream_ollama(prompt):
                 yield chunk
         else:
-            async for chunk in self._stream_gemini(prompt):
+            async for chunk in self._stream_groq(prompt):
                 yield chunk
 
-    async def _stream_gemini(self, prompt: str) -> AsyncGenerator[str, None]:
-        """Fetch full Gemini response then yield in 20-character chunks."""
-        response = await asyncio.to_thread(
-            self._gemini_model.generate_content, prompt
-        )
-        text = response.text
-        chunk_size = 20
-        for i in range(0, len(text), chunk_size):
-            yield text[i:i + chunk_size]
-            await asyncio.sleep(0.02)
+    async def _stream_groq(self, prompt: str) -> AsyncGenerator[str, None]:
+        """
+        Real token streaming from Groq via Server-Sent Events.
+        Groq is fast enough (~500 tok/sec) that streaming feels live.
+        """
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type":  "application/json"
+        }
+        payload = {
+            "model": self._groq_model,
+            "messages": [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user",   "content": prompt}
+            ],
+            "temperature": 0.1,
+            "max_tokens":  2048,
+            "stream":      True
+        }
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                GROQ_BASE_URL,
+                headers=headers,
+                json=payload
+            ) as response:
+                async for line in response.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[len("data: "):]
+                    if data_str.strip() == "[DONE]":
+                        break
+                    try:
+                        chunk   = json.loads(data_str)
+                        delta   = chunk["choices"][0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                    except (json.JSONDecodeError, KeyError):
+                        continue
 
     async def _stream_ollama(self, prompt: str) -> AsyncGenerator[str, None]:
-        """Real token streaming from the local Ollama server."""
+        """Real token streaming from local Ollama server."""
         async with httpx.AsyncClient(timeout=300.0) as client:
             async with client.stream(
                 "POST",
@@ -186,7 +254,7 @@ class BaseAgent:
                     "model": OLLAMA_MODEL,
                     "messages": [
                         {"role": "system", "content": self.system_prompt},
-                        {"role": "user", "content": prompt}
+                        {"role": "user",   "content": prompt}
                     ],
                     "stream": True
                 }
@@ -201,16 +269,15 @@ class BaseAgent:
                             continue
 
     # -------------------------------------------------------------------------
-    # Prompt builder — shared by all agents
+    # Prompt builder — shared by all agents (unchanged)
     # -------------------------------------------------------------------------
 
     def build_prompt(self, context: dict, task: str) -> str:
         """
         Builds the full prompt string sent to the LLM.
-        Context is serialised to indented JSON so the model can read it
-        clearly. The task section describes exactly what to return.
-        The closing instruction reinforces JSON-only output which reduces
-        formatting errors from both Ollama and Gemini.
+        Context serialised to indented JSON for readability.
+        Closing instruction reinforces JSON-only output — critical for
+        smaller models which tend to add conversational wrapping.
         """
         context_str = json.dumps(context, indent=2, default=str)
         return (
@@ -222,41 +289,38 @@ class BaseAgent:
         )
 
     # -------------------------------------------------------------------------
-    # JSON parser — shared by all agents
+    # JSON parser — shared by all agents (unchanged, proven working)
     # -------------------------------------------------------------------------
 
     def _parse_json(self, raw: str) -> dict:
         """
         Robustly parse a JSON object from raw LLM output.
-
-        Handles the four most common formatting issues seen from both
-        Ollama and Gemini:
-        1. Model thinking blocks wrapped in <think> tags
-        2. Markdown code fences (```json ... ```)
-        3. Leading prose text before the opening brace
-        4. Trailing text after the closing brace
+        Handles four failure modes:
+        1. Model thinking blocks in <think> tags
+        2. Markdown code fences
+        3. Leading prose before opening brace
+        4. Trailing text after closing brace
         """
         cleaned = raw.strip()
 
-        # Strip model thinking blocks that some local models emit
+        # Strip thinking blocks (some local models emit these)
         if "<think>" in cleaned and "</think>" in cleaned:
             cleaned = cleaned[cleaned.index("</think>") + len("</think>"):].strip()
 
-        # Strip markdown code fences
+        # Strip markdown fences
         if cleaned.startswith("```"):
-            lines = cleaned.split("\n")
-            lines = lines[1:]
+            lines = cleaned.split("\n")[1:]
             if lines and lines[-1].strip().startswith("```"):
                 lines = lines[:-1]
             cleaned = "\n".join(lines).strip()
 
-        # Skip any text that appears before the opening brace
+        # Skip leading prose
         if not cleaned.startswith("{"):
             start = cleaned.find("{")
             if start != -1:
                 cleaned = cleaned[start:]
 
-        # Trim anything after the last closing brace
+        # Trim trailing text
         end = cleaned.rfind("}")
         if end != -1:
             cleaned = cleaned[:end + 1]
@@ -265,19 +329,18 @@ class BaseAgent:
             return json.loads(cleaned)
         except json.JSONDecodeError as e:
             raise ValueError(
-                f"[{self.name}] Invalid JSON from LLM: {e}\n"
-                f"First 500 chars of raw response: {raw[:500]}"
+                f"[{self.name}] Invalid JSON from LLM after cleaning: {e}\n"
+                f"First 500 chars of raw: {raw[:500]}"
             )
 
     # -------------------------------------------------------------------------
-    # Blackboard helper — shared by all agents
+    # Blackboard helper — shared by all agents (unchanged)
     # -------------------------------------------------------------------------
 
     def extract_blackboard_context(self, blackboard: dict, keys: list) -> dict:
         """
         Pull only the requested keys from the full blackboard dict.
-        Keeps individual agent prompts lean by excluding data they do
-        not need, which reduces token usage and improves JSON reliability.
+        Keeps prompts lean — agents only see data they need.
         """
         return {
             k: blackboard.get(k)

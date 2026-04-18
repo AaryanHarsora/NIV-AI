@@ -577,3 +577,173 @@ class ConversationResponse(BaseModel):
     session_id: str
     conversation_output: ConversationOutput
     updated_analysis: Optional[AnalysisResponse] = None
+
+
+# -----------------------------------------------------------------------------
+# Chat session models (new chat-first flow)
+# -----------------------------------------------------------------------------
+
+class ChatRole(str, Enum):
+    USER      = "user"
+    ASSISTANT = "assistant"
+    SYSTEM    = "system"
+
+
+class ChatStatus(str, Enum):
+    COLLECTING  = "collecting"   # still asking questions
+    ANALYZING   = "analyzing"    # pipeline running
+    ROUNDTABLE  = "roundtable"   # Marcus/Zara/Soren discussing
+    COMPLETE    = "complete"     # report ready
+    ERROR       = "error"
+
+
+class ChatMessage(BaseModel):
+    role:       ChatRole
+    content:    str
+    timestamp:  str = ""
+    # Optional metadata for system messages
+    field_collected: Optional[str]  = None   # which field this message collected
+    progress_pct:    Optional[int]  = None   # completion % at this point
+
+
+class ChatSession(BaseModel):
+    session_id:           str
+    status:               ChatStatus = ChatStatus.COLLECTING
+    messages:             List[ChatMessage] = []
+    created_at:           str = ""
+    updated_at:           str = ""
+    # Collected data snapshot — updated after every message
+    collected_data:       Dict[str, Any] = {}
+    # Progress tracking
+    completion_pct:       int = 0
+    required_remaining:   int = 0
+    # Set once analysis completes
+    report_url:           Optional[str] = None
+    analysis_session_id:  Optional[str] = None
+
+
+class ChatMessageRequest(BaseModel):
+    """Incoming message from frontend."""
+    session_id: str
+    message:    str
+
+
+class ChatMessageResponse(BaseModel):
+    """Response sent back to frontend after each message."""
+    session_id:         str
+    assistant_message:  str
+    status:             ChatStatus
+    progress_pct:       int
+    required_remaining: int
+    ready:              bool = False
+    # Populated once analysis is complete
+    report_url:         Optional[str] = None
+    # Populated during roundtable
+    roundtable_event:   Optional[Dict[str, Any]] = None
+
+
+class ChatStartResponse(BaseModel):
+    """Response when a new chat session is created."""
+    session_id:        str
+    opening_message:   str
+    created_at:        str
+
+
+# -----------------------------------------------------------------------------
+# Mumbai cost breakdown schema (replaces IndiaCostBreakdown for Mumbai flow)
+# -----------------------------------------------------------------------------
+
+class MumbaiCostBreakdownSchema(BaseModel):
+    # Layer 1: Property cost
+    base_price:                 float
+    floor_rise_charges:         float
+    plc_charges:                float
+    parking_cost:               float
+    advertised_total:           float
+
+    # Layer 2: Govt charges
+    stamp_duty:                 float
+    metro_cess:                 float
+    registration_fee:           float
+    total_govt_charges:         float
+
+    # Layer 3: Legal
+    lawyer_fees:                float
+    agreement_drafting:         float
+    due_diligence_fee:          float
+    total_legal_costs:          float
+
+    # Layer 4: Loan costs
+    loan_amount:                float
+    loan_processing_fee:        float
+    loan_insurance_estimate:    float
+    total_loan_costs:           float
+
+    # Layer 5: Builder/society
+    gst:                        float
+    maintenance_deposit:        float
+    society_formation_charges:  float
+    corpus_fund:                float
+    clubhouse_fee:              float
+    total_builder_charges:      float
+
+    # Layer 7: Location
+    locality:                   str
+    price_per_sqft_actual:      float
+    market_price_per_sqft_low:  float
+    market_price_per_sqft_high: float
+    price_vs_market:            str
+    price_premium_pct:          float
+    estimated_rental_yield_pct: float
+    estimated_monthly_rent:     float
+
+    # Layer 8: Ongoing
+    monthly_maintenance:        float
+    annual_property_tax:        float
+    interior_estimate:          float
+    total_first_year_ongoing:   float
+
+    # Risk flags
+    flood_zone_risk:            bool
+    redevelopment_risk:         bool
+    is_under_construction:      bool
+    risk_flags:                 List[str]
+
+    # Summary
+    true_total_acquisition_cost:  float
+    true_total_with_interiors:    float
+    hidden_cost_above_advertised: float
+    hidden_cost_percentage:       float
+    cost_breakdown_text:          str
+
+
+# -----------------------------------------------------------------------------
+# Extended BlackboardState for chat flow
+# replaces india_cost_breakdown with mumbai_cost_breakdown
+# -----------------------------------------------------------------------------
+
+class BlackboardStateMumbai(BlackboardState):
+    """
+    Extends BlackboardState with Mumbai-specific cost breakdown.
+    All existing fields inherited unchanged.
+    """
+    mumbai_cost_breakdown: Optional[MumbaiCostBreakdownSchema] = None
+    # Chat session data passed through to agents
+    chat_session_id:        Optional[str] = None
+    locality:               Optional[str] = None
+    floor_number:           Optional[int] = None
+    facing:                 Optional[str] = None
+    parking_cost:           Optional[float] = None
+    owner_gender:           Optional[str] = None
+    first_time_buyer:       Optional[bool] = None
+
+
+# -----------------------------------------------------------------------------
+# Report download schema
+# -----------------------------------------------------------------------------
+
+class ReportDownloadResponse(BaseModel):
+    session_id:   str
+    download_url: str          # direct PDF download URL
+    generated_at: str
+    file_size_kb: Optional[int] = None

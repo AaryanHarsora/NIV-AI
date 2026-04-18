@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NIV AI — Mumbai Home Advisor</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Playfair+Display:wght@400;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="../css/main.css">
+    <link rel="stylesheet" href="../css/chat.css">
+</head>
+
+<body>
+
+    <!-- ── TOP BAR ─────────────────────────────────────────────────────────── -->
+    <header id="top-bar">
+        <div class="logo">NIV<sup>AI</sup></div>
+        <div class="center-tag">MUMBAI PROPERTY INTELLIGENCE ENGINE</div>
+        <div class="top-right">
+            <div id="session-badge" class="session-badge hidden">SID: —</div>
+            <button class="nav-btn danger" id="btn-reset" onclick="resetChat()">Reset ✗</button>
+        </div>
+    </header>
+
+    <!-- ── MAIN LAYOUT ─────────────────────────────────────────────────────── -->
+    <main id="main-layout">
+
+        <!-- ── LEFT: CHAT PANEL ──────────────────────────────────────────────── -->
+        <section id="chat-panel">
+
+            <!-- Progress bar (hidden until chat starts) -->
+            <div id="progress-wrap" class="hidden">
+                <div class="progress-label">
+                    <span id="progress-text">Collecting information</span>
+                    <span id="progress-pct">0%</span>
+                </div>
+                <div class="progress-track">
+                    <div id="progress-bar" class="progress-fill" style="width:0%"></div>
+                </div>
+            </div>
+
+            <!-- Welcome splash (shown before chat session starts) -->
+            <div id="welcome-splash">
+                <div class="splash-logo">NIV<sup>AI</sup></div>
+                <div class="splash-tagline">Mumbai Home Buying Intelligence</div>
+                <div class="splash-desc">
+                    <strong>What we do:</strong> Chat with us about any Mumbai property you're considering.
+                    We'll ask the right questions, run a complete financial simulation, stress-test your
+                    finances across 5 scenarios, detect behavioral biases, and give you an honest
+                    verdict — with a downloadable 10-section audit report.
+                </div>
+                <div class="trust-badges">
+                    <span class="trust-badge">MahaRERA Aware</span>
+                    <span class="trust-badge">RBI Compliant</span>
+                    <span class="trust-badge">Bias Detection</span>
+                    <span class="trust-badge">10-Layer Cost</span>
+                </div>
+                <button class="btn btn-accent btn-start" onclick="startChat()">
+                    START ANALYSIS ⟶
+                </button>
+            </div>
+
+            <!-- Messages container (hidden until session starts) -->
+            <div id="messages" class="messages-wrap hidden"></div>
+
+            <!-- Typing indicator -->
+            <div id="typing-indicator" class="typing-indicator hidden">
+                <div class="typing-avatar">N</div>
+                <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+
+            <!-- Input row (hidden until session starts) -->
+            <div id="input-row" class="input-row hidden">
+                <textarea id="chat-input" class="chat-input"
+                    placeholder="Tell me about the property you're considering..." rows="1"
+                    onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+                <button id="send-btn" class="send-btn" onclick="sendMessage()">
+                    <span id="send-icon">⟶</span>
+                </button>
+            </div>
+
+            <div id="input-hint" class="input-hint hidden">
+                Press Enter to send · Shift+Enter for new line
+            </div>
+
+        </section>
+
+        <!-- ── RIGHT: INFO PANEL ──────────────────────────────────────────────── -->
+        <aside id="info-panel">
+
+            <!-- Analysis status steps -->
+            <div id="status-card" class="info-card hidden">
+                <div class="info-card-header">ANALYSIS STATUS</div>
+                <div id="status-steps">
+                    <div class="status-step" id="step-costs">
+                        <div class="step-dot"></div>
+                        <span>Cost Breakdown</span>
+                    </div>
+                    <div class="status-step" id="step-financial">
+                        <div class="step-dot"></div>
+                        <span>Financial Reality</span>
+                    </div>
+                    <div class="status-step" id="step-scenarios">
+                        <div class="step-dot"></div>
+                        <span>Stress Scenarios</span>
+                    </div>
+                    <div class="status-step" id="step-behavioral">
+                        <div class="step-dot"></div>
+                        <span>Behavioral Analysis</span>
+                    </div>
+                    <div class="status-step" id="step-roundtable">
+                        <div class="step-dot"></div>
+                        <span>AI Roundtable</span>
+                    </div>
+                    <div class="status-step" id="step-report">
+                        <div class="step-dot"></div>
+                        <span>Report Ready</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live roundtable feed -->
+            <div id="roundtable-card" class="info-card hidden">
+                <div class="info-card-header">
+                    LIVE ROUNDTABLE
+                    <div id="ws-dot" class="ws-dot"></div>
+                </div>
+                <div id="consensus-wrap" class="hidden">
+                    <div class="consensus-label">
+                        <span>Consensus</span>
+                        <span id="consensus-pct">0%</span>
+                    </div>
+                    <div class="progress-track">
+                        <div id="consensus-bar" class="progress-fill accent" style="width:0%"></div>
+                    </div>
+                </div>
+                <div id="round-indicator" class="round-indicator hidden">
+                    Round <span id="round-num">1</span> of 4
+                </div>
+                <div id="roundtable-messages" class="roundtable-messages"></div>
+            </div>
+
+            <!-- Report download -->
+            <div id="report-card" class="info-card hidden">
+                <div class="info-card-header">REPORT READY</div>
+                <div class="report-summary" id="report-summary">
+                    Your complete Mumbai home buying audit is ready.
+                </div>
+                <div id="verdict-badge" class="verdict-badge">—</div>
+                <div class="risk-score-row">
+                    <span class="risk-label-text">Risk Score</span>
+                    <span id="risk-score-val" class="risk-score-val">—</span>
+                </div>
+                <button class="btn btn-download" id="btn-download" onclick="downloadReport()">
+                    ↓ Download Full Report (PDF)
+                </button>
+                <div class="report-note">
+                    10-section audit · Cost breakdown · Stress tests · Legal checklist
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- ── BOTTOM BAR ───────────────────────────────────────────────────────── -->
+    <footer id="bottom-bar">
+        <div class="status-live">
+            <div class="status-dot"></div>
+            SYSTEM ONLINE
+        </div>
+        <div id="state-label">READY</div>
+    </footer>
+
+    <!-- Toast -->
+    <div id="toast"></div>
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay">
+        <div class="loading-box">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" id="loading-msg">Processing</div>
+            <div class="loading-sub" id="loading-sub">Please wait...</div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/chat.js"></script>
+
+</body>
+
+</html>

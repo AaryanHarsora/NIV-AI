@@ -66,14 +66,13 @@ class DecisionSynthesizerAgent(BaseAgent):
         super().__init__(
             name="DecisionSynthesizer",
             persona="Six-domain specialist panel producing the definitive home buying audit",
-            system_prompt=SYSTEM_PROMPT
+            system_prompt=SYSTEM_PROMPT,
+            use_smart_model=True   # uses llama-3.3-70b for the full audit
         )
-        # When running on Gemini, ensure the model is initialised even if
-        # USE_OLLAMA is true globally — the full audit needs Gemini's context window.
-        # When USE_OLLAMA=true we use a lean prompt via Ollama instead.
-        if os.getenv("USE_OLLAMA", "true").lower() == "false":
-            if not self._gemini_model:
-                self._init_gemini()
+        # Groq routing — no Gemini init needed.
+        # use_smart_model=True routes to llama-3.3-70b for the full audit.
+        # The _build_synthesis_prompt method still routes lean vs full
+        # based on USE_OLLAMA flag for backward compatibility.
 
     async def synthesize(self, blackboard: dict) -> VerdictOutput:
         """

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>NIV AI</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Playfair+Display:wght@400;700;900&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/roundtable.css">
+</head>
+
+<body>
+
+  <!-- TOP BAR -->
+  <div id="top-bar">
+    <div class="logo">
+      NIV
+      <span class="logo-tag">BETA v2.0</span>
+    </div>
+    <div class="center-tag">PROPERTY INVESTMENT VERDICT ENGINE</div>
+    <div class="nav-controls">
+      <button class="nav-btn" id="btn-back" onclick="goBack()" disabled>← Back</button>
+      <button class="nav-btn danger" id="btn-reset" onclick="resetSystem()" disabled>Reset ✗</button>
+      <div id="session-badge">SID: —</div>
+    </div>
+  </div>
+
+  <!-- CANVAS FOR ALL CONTENT -->
+  <div id="canvas">
+
+    <!-- STATE 0: LOGIN -->
+    <div id="state-0" class="state active">
+      <div class="card login-card">
+        <div class="niv-logo-block">
+          NIV<sup>AI</sup>
+        </div>
+        <div class="login-tagline">Multi-Agent Property Evaluator</div>
+
+        <div class="login-desc">
+          <strong>SECURE TERMINAL:</strong> Connect to the NIV reasoning cluster. We analyze your financial profile,
+          real estate metrics, and behavioral biases to render an objective verdict on your property investment.
+        </div>
+
+        <div class="trust-badges">
+          <span class="trust-badge">RERA Configured</span>
+          <span class="trust-badge">RBI Compliant</span>
+          <span class="trust-badge">Bias Mitigated</span>
+        </div>
+
+        <button class="btn btn-accent" id="btn-enter" onclick="window.location.href='pages/chat.html'">
+          START ANALYSIS ⟶
+        </button>
+        <div class="api-note">v2.0 Backend Link Active</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div id="bottom-bar">
+    <div class="status-live">
+      <div class="status-dot"></div>
+      SYSTEM ONLINE
+    </div>
+    <div id="state-label">SECURE LOGIN</div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast"></div>
+
+  <!-- OVERLAY LOADING -->
+  <div id="loading-overlay">
+    <div class="loading-box">
+      <div class="loading-spinner"></div>
+      <div class="loading-text" id="loading-msg">Processing</div>
+      <div class="loading-sub" id="loading-sub">Connecting...</div>
+    </div>
+  </div>
+
+  <!-- JS -->
+  <script src="js/auth.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/roundtable.js"></script>
+  <script src="js/charts.js"></script>
+</body>
+
+</html>
