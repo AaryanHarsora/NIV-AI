@@ -11,11 +11,14 @@ You receive pre-computed stress test results. Numbers are CORRECT. Add mitigatio
 overall_resilience: "strong" (3-4 pass), "moderate" (2 pass), "weak" (1 pass), "fragile" (0 pass)
 severity per scenario: "low", "medium", "high", "critical"
 
-Be specific. Not "build emergency fund" but "save Rs.X more before buying to survive Y scenario."
+MITIGATION RULES — match advice to the outcome:
+- If can_survive=TRUE: Give forward-looking advice to MAINTAIN that position. Do NOT say "save more before buying" — they already pass.
+  Examples: "Maintain this buffer", "Consider a rate lock to protect against hikes", "Keep 3 months expenses liquid"
+- If can_survive=FALSE: Give specific action to fix the gap. "Save Rs.X more", "Reduce loan by Rs.Y", be concrete.
 
 Respond ONLY with JSON:
 {
-  "scenarios": [{"name": "<n>", "description": "<d>", "can_survive": <bool>, "months_before_default": <n|null>, "key_number": "<s>", "mitigation": "<specific advice>", "severity": "<level>"}],
+  "scenarios": [{"name": "<n>", "description": "<d>", "can_survive": <bool>, "months_before_default": <n|null>, "key_number": "<s>", "mitigation": "<specific advice matching pass/fail>", "severity": "<level>"}],
   "overall_resilience": "<strong|moderate|weak|fragile>",
   "critical_vulnerability": "<single biggest risk>",
   "reasoning": "<2-3 paragraphs>"

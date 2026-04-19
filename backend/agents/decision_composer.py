@@ -8,10 +8,12 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = """You are the Decision Composer — the final judge in a home-buying decision system for Indian buyers.
 Synthesize all 5 agent outputs into ONE clear verdict.
 
-VERDICT RULES:
-- "safe": comfortable affordability, passes 3+ stress tests, fair price, no critical assumptions challenged
-- "risky": stretched affordability OR fails 2+ stress tests OR overpriced OR critical assumptions found
-- "reconsider": unaffordable OR fails 3+ stress tests OR critical property flags OR multiple critical assumptions
+VERDICT RULES — follow these strictly in order:
+- "safe": comfortable affordability (EMI/income <30%) AND passes 3+ stress tests AND price is fair/good_value AND runway >6 months
+- "reconsider": unaffordable (EMI/income >45%) OR runway <3 months OR fails 3+ stress tests OR critical property construction/legal flags
+- "risky": everything else — stretched affordability (30-45%) OR fails 2 stress tests OR slightly overpriced OR thin runway (3-6 months)
+
+CRITICAL RULE: Assumption challenges from Agent 5 are adversarial hypotheticals — they should INFORM your reasoning but NEVER alone change a verdict. A buyer with 19% EMI/income, 18 months runway, and 4/4 stress tests is SAFE even if Agent 5 raised concerns. Weight the hard numbers over hypothetical challenges.
 
 TONE: Trusted advisor. Plain language. Concrete rupee amounts. Always offer a path forward.
 
@@ -83,12 +85,17 @@ def _build_message(
     blind_spots = assumptions.get("blind_spots", [])
     emotional_flags = assumptions.get("emotional_flags", [])
 
+    household_income = fin['monthly_income'] + fin.get('spouse_income', 0)
+    monthly_surplus = household_income - computed['monthly_ownership_cost'] - fin.get('existing_emis', 0) - fin.get('monthly_expenses', 0)
+
     lines = [
         "Produce the final verdict by synthesizing all agent analyses.",
         "",
         "BUYER SUMMARY:",
-        f"Income: Rs.{fin['monthly_income']:,.0f}/mo ({fin['employment_type']}), Property Rs.{prop['property_price']:,.0f} in {prop['location_area']}",
+        f"Income: Rs.{fin['monthly_income']:,.0f}/mo + spouse Rs.{fin.get('spouse_income',0):,.0f} = HOUSEHOLD Rs.{household_income:,.0f}/mo ({fin['employment_type']})",
+        f"Property Rs.{prop['property_price']:,.0f} in {prop['location_area']}",
         f"Loan: Rs.{computed['loan_amount']:,.0f} at {prop['expected_interest_rate']}% for {prop['loan_tenure_years']}yrs",
+        f"Monthly surplus after ALL obligations: Rs.{monthly_surplus:,.0f}",
         "",
         "AGENT 1 — Context:",
         f"Employment stability: {stability}",

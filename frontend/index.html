@@ -1,393 +1,1596 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Niv AI — Should You Buy This House?</title>
+    <title>NIV AI — Home Buying Decision Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #080810;
+            --surface: #0e0e1a;
+            --border: #1c1c2e;
+            --border-bright: #2a2a40;
+            --text: #f0eeff;
+            --text-muted: #9896b8;
+            --text-dim: #c8c5e8;
+            --accent: #7c6af7;
+            --accent-dim: #3d3580;
+            --green: #22c55e;
+            --green-bg: #052010;
+            --green-border: #0f3020;
+            --yellow: #f59e0b;
+            --yellow-bg: #1a1200;
+            --yellow-border: #2a2000;
+            --red: #ef4444;
+            --red-bg: #180808;
+            --red-border: #2a1010;
+            --font-display: 'Syne', sans-serif;
+            --font-body: 'DM Sans', sans-serif;
+            --font-mono: 'DM Mono', monospace;
+        }
 
-    <!-- Pico CSS — classless styling -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
-    <link rel="stylesheet" href="/static/style.css">
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            font-size: 14.5px;
+            line-height: 1.65;
+            font-weight: 400;
+        }
+
+        /* ── HEADER ── */
+        .hdr {
+            border-bottom: 1px solid var(--border);
+            padding: 14px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--surface);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: -0.5px;
+        }
+
+        .logo em {
+            color: var(--text);
+            font-style: normal;
+        }
+
+        .hdr-sub {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 1px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .hdr-tag {
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--border);
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+
+        /* ── LAYOUT ── */
+        .wrap {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 32px 20px;
+        }
+
+        /* ── FORM CARDS ── */
+        .fcard {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 14px;
+        }
+
+        .fcard-title {
+            font-family: var(--font-display);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 18px;
+        }
+
+        .g2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        @media(max-width:600px) {
+            .g2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .field label {
+            display: block;
+            font-size: 11.5px;
+            font-weight: 500;
+            color: var(--text-dim);
+            margin-bottom: 5px;
+            letter-spacing: 0.3px;
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border-bright);
+            border-radius: 8px;
+            padding: 9px 12px;
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .field input:focus,
+        .field select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
+        }
+
+        .field input::placeholder {
+            color: var(--border-bright);
+        }
+
+        .field select option {
+            background: var(--surface);
+        }
+
+        .field-preview {
+            font-size: 11px;
+            color: var(--accent);
+            font-family: var(--font-mono);
+            margin-top: 3px;
+            height: 14px;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 14px;
+            font-family: var(--font-display);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.3px;
+            transition: background 0.15s, transform 0.1s;
+            margin-top: 8px;
+        }
+
+        .btn-primary:hover {
+            background: #6b59e6;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-ghost {
+            width: 100%;
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 11px;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: border-color 0.15s, color 0.15s;
+        }
+
+        .btn-ghost:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ── LOADING ── */
+        #loading {
+            display: none;
+        }
+
+        .load-wrap {
+            text-align: center;
+            padding: 56px 0;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--border-bright);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .load-title {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .load-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+        }
+
+        .agents {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-width: 340px;
+            margin: 0 auto;
+        }
+
+        .arow {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 13px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 12px;
+            transition: all .2s;
+        }
+
+        .arow.running {
+            border-color: var(--accent);
+            background: rgba(124, 106, 247, .07);
+        }
+
+        .arow.done {
+            border-color: var(--green-border);
+            background: var(--green-bg);
+        }
+
+        .adot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--border-bright);
+            flex-shrink: 0;
+        }
+
+        .arow.running .adot {
+            background: var(--accent);
+            animation: pulse 1s infinite;
+        }
+
+        .arow.done .adot {
+            background: var(--green);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: .3
+            }
+        }
+
+        .aname {
+            flex: 1;
+            color: var(--text-dim);
+        }
+
+        .arow.running .aname {
+            color: var(--text);
+        }
+
+        .arow.done .aname {
+            color: var(--green);
+        }
+
+        .astatus {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .arow.running .astatus {
+            color: var(--accent);
+        }
+
+        .arow.done .astatus {
+            color: var(--green);
+        }
+
+        /* ── ERROR ── */
+        #err {
+            display: none;
+            background: var(--red-bg);
+            border: 1px solid var(--red-border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--red);
+            font-size: 13px;
+            margin-bottom: 14px;
+        }
+
+        /* ══════════════════════════════════════════
+   REPORT
+══════════════════════════════════════════ */
+        #report {
+            display: none;
+        }
+
+        /* ── VERDICT ── */
+        .verdict {
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 24px;
+        }
+
+        .verdict.safe {
+            background: var(--green-bg);
+            border: 1px solid var(--green-border);
+        }
+
+        .verdict.risky {
+            background: var(--yellow-bg);
+            border: 1px solid var(--yellow-border);
+        }
+
+        .verdict.reconsider {
+            background: var(--red-bg);
+            border: 1px solid var(--red-border);
+        }
+
+        .v-icon {
+            font-size: 40px;
+            flex-shrink: 0;
+        }
+
+        .v-word {
+            font-family: var(--font-display);
+            font-size: 32px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            line-height: 1;
+        }
+
+        .verdict.safe .v-word {
+            color: var(--green);
+        }
+
+        .verdict.risky .v-word {
+            color: var(--yellow);
+        }
+
+        .verdict.reconsider .v-word {
+            color: var(--red);
+        }
+
+        .v-reason {
+            font-size: 14px;
+            color: var(--text-dim);
+            margin-top: 8px;
+            line-height: 1.6;
+            max-width: 600px;
+        }
+
+        .v-conf {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            font-family: var(--font-mono);
+        }
+
+        /* ── CASH FLOW HERO — the most important section ── */
+        .cashflow-hero {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .cf-title {
+            font-family: var(--font-display);
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .cf-main {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .cf-surplus-box {
+            flex-shrink: 0;
+        }
+
+        .cf-surplus-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .cf-surplus-value {
+            font-family: var(--font-display);
+            font-size: 44px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .cf-surplus-value.good {
+            color: var(--green);
+        }
+
+        .cf-surplus-value.warn {
+            color: var(--yellow);
+        }
+
+        .cf-surplus-value.crit {
+            color: var(--red);
+        }
+
+        .cf-surplus-sub {
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .cf-surplus-sub.good {
+            color: var(--green);
+        }
+
+        .cf-surplus-sub.warn {
+            color: var(--yellow);
+        }
+
+        .cf-surplus-sub.crit {
+            color: var(--red);
+        }
+
+        /* Income waterfall */
+        .cf-waterfall {
+            flex: 1;
+            min-width: 240px;
+        }
+
+        .cf-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .cf-row-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            width: 160px;
+            flex-shrink: 0;
+        }
+
+        .cf-row-amount {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 500;
+            width: 90px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .cf-row-amount.income {
+            color: var(--green);
+        }
+
+        .cf-row-amount.out {
+            color: var(--red);
+        }
+
+        .cf-row-amount.surplus {
+            font-weight: 700;
+        }
+
+        .cf-bar-wrap {
+            flex: 1;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .cf-bar {
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        .cf-bar.income {
+            background: var(--green);
+        }
+
+        .cf-bar.out {
+            background: var(--red);
+        }
+
+        .cf-bar.surplus.good {
+            background: var(--green);
+        }
+
+        .cf-bar.surplus.warn {
+            background: var(--yellow);
+        }
+
+        .cf-bar.surplus.crit {
+            background: var(--red);
+        }
+
+        .cf-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0 12px 0;
+        }
+
+        .cf-context {
+            font-size: 13px;
+            color: var(--text-dim);
+            line-height: 1.55;
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+        }
+
+        .cf-context strong {
+            color: var(--text);
+        }
+
+        /* ── SCORECARD ── */
+        .scorecard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        @media(max-width:640px) {
+            .scorecard {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .sc-item {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid var(--border);
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s;
+        }
+
+        .sc-item:hover {
+            border-color: var(--border-bright);
+        }
+
+        .sc-item::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .sc-item.pass::after {
+            background: var(--green);
+        }
+
+        .sc-item.warn::after {
+            background: var(--yellow);
+        }
+
+        .sc-item.fail::after {
+            background: var(--red);
+        }
+
+        .sc-item.neutral::after {
+            background: var(--border);
+        }
+
+        .sc-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-muted);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        .sc-val {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+
+        .sc-item.pass .sc-val {
+            color: var(--green);
+        }
+
+        .sc-item.warn .sc-val {
+            color: var(--yellow);
+        }
+
+        .sc-item.fail .sc-val {
+            color: var(--red);
+        }
+
+        .sc-item.neutral .sc-val {
+            color: var(--text-muted);
+        }
+
+        .sc-verdict {
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+
+        .sc-item.pass .sc-verdict {
+            color: #16a34a;
+        }
+
+        .sc-item.warn .sc-verdict {
+            color: #b45309;
+        }
+
+        .sc-item.fail .sc-verdict {
+            color: #b91c1c;
+        }
+
+        .sc-item.neutral .sc-verdict {
+            color: var(--text-muted);
+        }
+
+        .sc-ctx {
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* ── TWO COLUMN ── */
+        .row2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        @media(max-width:720px) {
+            .row2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .rcard {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+        }
+
+        .rcard-title {
+            font-family: var(--font-display);
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        /* ── DATA TABLE ── */
+        .dtable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .dtable td {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        .dtable td:first-child {
+            color: var(--text-dim);
+        }
+
+        .dtable td:last-child {
+            text-align: right;
+            font-family: var(--font-mono);
+            font-weight: 500;
+        }
+
+        .dtable tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* ── STRESS ── */
+        .stress-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .sc2 {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 13px;
+            border: 1px solid var(--border);
+        }
+
+        .sc2.pass {
+            border-color: var(--green-border);
+        }
+
+        .sc2.fail {
+            border-color: var(--red-border);
+        }
+
+        .sc2-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .sc2-name {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: capitalize;
+            color: var(--text);
+        }
+
+        .badge {
+            font-size: 9px;
+            font-weight: 700;
+            padding: 3px 7px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .badge.pass {
+            background: #052010;
+            color: var(--green);
+            border: 1px solid var(--green-border);
+        }
+
+        .badge.fail {
+            background: var(--red-bg);
+            color: var(--red);
+            border: 1px solid var(--red-border);
+        }
+
+        .sc2-key {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-bottom: 7px;
+            line-height: 1.4;
+        }
+
+        .sc2-tip {
+            font-size: 12px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border);
+            padding-top: 7px;
+            line-height: 1.4;
+        }
+
+        /* ── CHALLENGES ── */
+        .challenge {
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 9px;
+        }
+
+        .challenge.critical {
+            border-left: 3px solid var(--red);
+        }
+
+        .challenge.high {
+            border-left: 3px solid var(--yellow);
+        }
+
+        .challenge.medium {
+            border-left: 3px solid var(--accent);
+        }
+
+        .challenge.low {
+            border-left: 3px solid var(--border);
+        }
+
+        .ch-top {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 7px;
+            flex-wrap: wrap;
+        }
+
+        .sev {
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+
+        .sev.critical {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+
+        .sev.high {
+            background: #1a0f00;
+            color: var(--yellow);
+        }
+
+        .sev.medium {
+            background: rgba(124, 106, 247, .15);
+            color: var(--accent);
+        }
+
+        .sev.low {
+            background: var(--border);
+            color: var(--text-muted);
+        }
+
+        .ch-assume {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .ch-body {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 5px;
+            line-height: 1.55;
+        }
+
+        .ch-impact {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        /* ── LISTS ── */
+        .reason-list,
+        .action-list {
+            list-style: none;
+        }
+
+        .reason-list li {
+            font-size: 13.5px;
+            color: var(--text-dim);
+            padding: 8px 12px;
+            background: var(--bg);
+            border-radius: 7px;
+            margin-bottom: 6px;
+            border-left: 2px solid var(--accent-dim);
+            line-height: 1.5;
+        }
+
+        .action-list li {
+            font-size: 13.5px;
+            color: var(--text-dim);
+            padding: 9px 12px;
+            background: var(--bg);
+            border-radius: 7px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: flex-start;
+            gap: 9px;
+            line-height: 1.5;
+        }
+
+        .action-list li::before {
+            content: '→';
+            color: var(--accent);
+            font-weight: 700;
+            flex-shrink: 0;
+            font-family: var(--font-display);
+        }
+
+        /* ── REASONING ── */
+        .reasoning {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px;
+            font-size: 13.5px;
+            color: var(--text-dim);
+            line-height: 1.8;
+            white-space: pre-wrap;
+            font-family: var(--font-body);
+        }
+
+        /* ── PILLS ── */
+        .pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+
+        .pill {
+            font-size: 11px;
+            padding: 5px 11px;
+            border-radius: 20px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        /* ── PROPERTY FLAGS ── */
+        .flag {
+            font-size: 12px;
+            padding: 8px 12px;
+            background: var(--bg);
+            border-radius: 7px;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .flag.high {
+            border-left: 2px solid var(--red);
+        }
+
+        .flag.medium {
+            border-left: 2px solid var(--yellow);
+        }
+
+        .flag.low {
+            border-left: 2px solid var(--border);
+        }
+
+        .flag-name {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        /* ── RENT VS BUY VISUAL ── */
+        .rvb-compare {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .rvb-box {
+            flex: 1;
+            background: var(--bg);
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .rvb-box-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            margin-bottom: 6px;
+        }
+
+        .rvb-box-val {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        .rvb-box.rent .rvb-box-val {
+            color: var(--green);
+        }
+
+        .rvb-box.buy .rvb-box-val {
+            color: var(--text);
+        }
+
+        .rvb-box-sub {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
+
+        .rvb-diff {
+            font-size: 13px;
+            color: var(--text-muted);
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            line-height: 1.55;
+        }
+
+        /* ── META ── */
+        .meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 16px 0 4px;
+            font-family: var(--font-mono);
+        }
+    </style>
 </head>
 
 <body>
 
-    <header class="container">
-        <nav>
-            <ul>
-                <li><strong>Niv AI</strong></li>
-            </ul>
-            <ul>
-                <li><a href="#" id="nav-new" onclick="resetToForm()">New Analysis</a></li>
-                <li><a href="#" id="nav-about" onclick="showAbout()">How It Works</a></li>
-            </ul>
-        </nav>
-    </header>
+    <div class="hdr">
+        <div>
+            <div class="logo">NIV<em> AI</em></div>
+            <div class="hdr-sub">Home Buying Decision Engine · Mumbai</div>
+        </div>
+        <div class="hdr-tag">6-Agent System</div>
+    </div>
 
-    <main class="container">
+    <div class="wrap">
 
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- VIEW 1: LANDING                                                    -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <section id="landing-view" class="view">
-            <div class="hero">
-                <h1>Should you buy this house?</h1>
-                <p>Get an AI-powered decision audit in under a minute. We analyze your finances, stress-test your
-                    future, evaluate the property, and challenge your assumptions — so you don't make a ₹50 lakh
-                    mistake.</p>
-                <button onclick="showView('form-view')" class="cta-button">Start Your Analysis</button>
-                <small>Free. No sign-up required. Takes 3 minutes.</small>
-            </div>
-        </section>
-
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- VIEW 2: INPUT FORM (3-step wizard)                                 -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <section id="form-view" class="view" style="display:none">
-
-            <!-- Progress bar -->
-            <div class="step-progress">
-                <div class="step-bar">
-                    <div class="step-fill" id="step-fill"></div>
-                </div>
-                <div class="step-labels">
-                    <span id="step-label-1" class="step-label active">1. Your Finances</span>
-                    <span id="step-label-2" class="step-label">2. The Property</span>
-                    <span id="step-label-3" class="step-label">3. Review</span>
-                </div>
-            </div>
-
-            <!-- Step 1: Financial Info -->
-            <div id="step-1" class="form-step">
-                <h2>Your Financial Situation</h2>
-                <p>All numbers in ₹ (Indian Rupees). Be honest — accuracy improves results.</p>
-
-                <div class="grid">
-                    <label>
-                        Monthly Take-Home Income *
-                        <input type="number" id="monthly_income" placeholder="e.g. 120000" required min="1">
-                        <small>Net salary after tax deductions</small>
-                    </label>
-                    <label>
-                        Employment Type
-                        <select id="employment_type">
-                            <option value="salaried" selected>Salaried</option>
-                            <option value="freelance">Freelance</option>
+        <!-- ═══ FORM ═══ -->
+        <div id="form-section">
+            <div id="err"></div>
+            <div class="fcard">
+                <div class="fcard-title">💰 Your Financial Situation</div>
+                <div class="g2">
+                    <div class="field"><label>Your Monthly Income (₹)</label><input id="f_inc" type="number"
+                            value="120000" placeholder="120000" oninput="preview(this,'inc-p')">
+                        <div id="inc-p" class="field-preview"></div>
+                    </div>
+                    <div class="field"><label>Spouse / Co-borrower Income (₹)</label><input id="f_sp" type="number"
+                            value="0" placeholder="0" oninput="preview(this,'sp-p')">
+                        <div id="sp-p" class="field-preview"></div>
+                    </div>
+                    <div class="field"><label>Employment Type</label>
+                        <select id="f_emp">
+                            <option value="salaried">Salaried</option>
+                            <option value="freelance">Freelance / Consulting</option>
                             <option value="business">Business Owner</option>
                         </select>
-                    </label>
-                </div>
-
-                <div class="grid">
-                    <label>
-                        Years at Current Job
-                        <input type="number" id="years_in_current_job" value="2" min="0" max="50" step="0.5">
-                    </label>
-                    <label>
-                        Expected Annual Salary Growth (%)
-                        <input type="number" id="expected_annual_growth_pct" value="8" min="0" max="50" step="0.5">
-                    </label>
-                </div>
-
-                <div class="grid">
-                    <label>
-                        Existing EMIs (total/month)
-                        <input type="number" id="existing_emis" value="0" min="0">
-                        <small>Car loan, personal loan, education loan, etc.</small>
-                    </label>
-                    <label>
-                        Monthly Expenses
-                        <input type="number" id="monthly_expenses" placeholder="Leave blank = 40% of income" min="0">
-                        <small>Household + lifestyle. Leave blank for auto-estimate.</small>
-                    </label>
-                </div>
-
-                <div class="grid">
-                    <label>
-                        Current Rent
-                        <input type="number" id="current_rent" value="0" min="0">
-                    </label>
-                    <label>
-                        Liquid Savings *
-                        <input type="number" id="liquid_savings" placeholder="e.g. 2000000" required min="0">
-                        <small>FDs + savings account + liquid mutual funds</small>
-                    </label>
-                </div>
-
-                <div class="grid">
-                    <label>
-                        Other Investments
-                        <input type="number" id="other_investments" value="0" min="0">
-                        <small>PPF, stocks, gold — non-liquid</small>
-                    </label>
-                    <label>
-                        Dependents
-                        <input type="number" id="dependents" value="0" min="0" max="20">
-                    </label>
-                </div>
-
-                <label>
-                    Spouse Monthly Income
-                    <input type="number" id="spouse_income" value="0" min="0">
-                    <small>Leave 0 if single income household</small>
-                </label>
-
-                <label>
-                    Anything else we should know? (optional)
-                    <textarea id="financial_notes" rows="3"
-                        placeholder="e.g. 'Parents may contribute ₹10L for down payment' or 'Wife plans to start working next year'"></textarea>
-                </label>
-
-                <div class="form-nav">
-                    <button onclick="showView('landing-view')" class="secondary">Back</button>
-                    <button onclick="nextStep(2)">Next: Property Details →</button>
+                    </div>
+                    <div class="field"><label>Years in Current Job</label><input id="f_yrs" type="number" value="3"
+                            step="0.5"></div>
+                    <div class="field"><label>Expected Annual Income Growth (%)</label><input id="f_grow" type="number"
+                            value="8" step="0.5"></div>
+                    <div class="field"><label>Existing Loan EMIs (₹/month)</label><input id="f_emis" type="number"
+                            value="5000"></div>
+                    <div class="field"><label>Monthly Living Expenses (₹)</label><input id="f_exp" type="number"
+                            value="45000"></div>
+                    <div class="field"><label>Current Monthly Rent (₹)</label><input id="f_rent" type="number"
+                            value="25000"></div>
+                    <div class="field"><label>Liquid Savings / FD / Stocks (₹)</label><input id="f_sav" type="number"
+                            value="2000000" oninput="preview(this,'sav-p')">
+                        <div id="sav-p" class="field-preview"></div>
+                    </div>
+                    <div class="field"><label>Number of Dependents</label><input id="f_dep" type="number" value="1"
+                            min="0"></div>
                 </div>
             </div>
-
-            <!-- Step 2: Property Info -->
-            <div id="step-2" class="form-step" style="display:none">
-                <h2>The Property</h2>
-                <p>Tell us about the house you're considering.</p>
-
-                <div class="grid">
-                    <label>
-                        Property Price (₹) *
-                        <input type="number" id="property_price" placeholder="e.g. 8500000" required min="100000">
-                    </label>
-                    <label>
-                        Location / Area *
-                        <input type="text" id="location_area" placeholder="e.g. Andheri West" required>
-                        <small>Mumbai micro-market name</small>
-                    </label>
-                </div>
-
-                <div class="grid">
-                    <label>
-                        Configuration
-                        <select id="configuration">
+            <div class="fcard">
+                <div class="fcard-title">🏠 Property You're Considering</div>
+                <div class="g2">
+                    <div class="field"><label>Property Price (₹)</label><input id="p_price" type="number"
+                            value="8500000" oninput="preview(this,'pp-p')">
+                        <div id="pp-p" class="field-preview"></div>
+                    </div>
+                    <div class="field"><label>Location / Area</label><input id="p_loc" type="text" value="Andheri West"
+                            placeholder="Andheri West"></div>
+                    <div class="field"><label>Configuration</label>
+                        <select id="p_cfg">
                             <option value="1BHK">1 BHK</option>
                             <option value="2BHK" selected>2 BHK</option>
                             <option value="3BHK">3 BHK</option>
                             <option value="4BHK">4 BHK</option>
-                            <option value="5+BHK">5+ BHK</option>
                         </select>
-                    </label>
-                    <label>
-                        Carpet Area (sq ft) *
-                        <input type="number" id="carpet_area_sqft" placeholder="e.g. 650" required min="50" max="50000">
-                    </label>
-                </div>
-
-                <div class="grid">
-                    <label>
-                        Down Payment Available (₹) *
-                        <input type="number" id="down_payment_available" placeholder="e.g. 1500000" required min="0">
-                    </label>
-                    <label>
-                        Expected Interest Rate (%)
-                        <input type="number" id="expected_interest_rate" value="8.5" min="1" max="20" step="0.1">
-                    </label>
-                </div>
-
-                <div class="grid">
-                    <label>
-                        Loan Tenure (years)
-                        <input type="number" id="loan_tenure_years" value="20" min="1" max="30">
-                    </label>
-                    <label>
-                        Buyer Gender
-                        <select id="buyer_gender">
-                            <option value="male" selected>Male</option>
-                            <option value="female">Female (lower stamp duty in MH)</option>
+                    </div>
+                    <div class="field"><label>Carpet Area (sqft)</label><input id="p_sqft" type="number" value="650">
+                    </div>
+                    <div class="field"><label>Down Payment You Can Pay (₹)</label><input id="p_dp" type="number"
+                            value="1700000" oninput="preview(this,'dp-p')">
+                        <div id="dp-p" class="field-preview"></div>
+                    </div>
+                    <div class="field"><label>Preferred Loan Tenure (years)</label><input id="p_ten" type="number"
+                            value="20" min="1" max="30"></div>
+                    <div class="field"><label>Expected Interest Rate (%)</label><input id="p_rate" type="number"
+                            value="8.5" step="0.1"></div>
+                    <div class="field"><label>Buyer Gender</label>
+                        <select id="p_gen">
+                            <option value="male">Male — 6% stamp duty</option>
+                            <option value="female">Female — 5% stamp duty</option>
                         </select>
-                    </label>
-                </div>
-
-                <div class="grid">
-                    <label>
-                        Ready to Move?
-                        <select id="is_ready_to_move">
-                            <option value="true" selected>Yes — Ready to Move</option>
+                    </div>
+                    <div class="field"><label>Ready to Move In?</label>
+                        <select id="p_rdy">
+                            <option value="true">Yes — Ready Possession</option>
                             <option value="false">No — Under Construction</option>
                         </select>
-                    </label>
-                    <label>
-                        RERA Registered?
-                        <select id="is_rera_registered">
-                            <option value="null" selected>Don't Know</option>
+                    </div>
+                    <div class="field"><label>RERA Registered?</label>
+                        <select id="p_rera">
                             <option value="true">Yes</option>
                             <option value="false">No</option>
+                            <option value="null">Don't Know</option>
                         </select>
-                    </label>
+                    </div>
+                    <div class="field"><label>Builder / Developer Name</label><input id="p_bld" type="text"
+                            value="Oberoi Realty"></div>
                 </div>
+            </div>
+            <button class="btn-primary" onclick="run()">🚀 Analyse This Purchase — 6 Agents</button>
+        </div>
 
-                <div class="grid">
-                    <label>
-                        Builder Name (optional)
-                        <input type="text" id="builder_name" placeholder="e.g. Godrej Properties">
-                    </label>
-                    <label>
-                        Possession Date (if under construction)
-                        <input type="text" id="possession_date" placeholder="e.g. Dec 2026">
-                    </label>
+        <!-- ═══ LOADING ═══ -->
+        <div id="loading">
+            <div class="fcard">
+                <div class="load-wrap">
+                    <div class="spinner"></div>
+                    <div class="load-title">Analysing Your Situation</div>
+                    <div class="load-sub">6 agents working in sequence — 20 to 40 seconds</div>
+                    <div class="agents">
+                        <div class="arow" id="a1">
+                            <div class="adot"></div>
+                            <div class="aname">Context Synthesizer</div>
+                            <div class="astatus">waiting</div>
+                        </div>
+                        <div class="arow" id="a2">
+                            <div class="adot"></div>
+                            <div class="aname">Financial Analyst</div>
+                            <div class="astatus">waiting</div>
+                        </div>
+                        <div class="arow" id="a3">
+                            <div class="adot"></div>
+                            <div class="aname">Risk Simulator</div>
+                            <div class="astatus">waiting</div>
+                        </div>
+                        <div class="arow" id="a4">
+                            <div class="adot"></div>
+                            <div class="aname">Property Analyst</div>
+                            <div class="astatus">waiting</div>
+                        </div>
+                        <div class="arow" id="a5">
+                            <div class="adot"></div>
+                            <div class="aname">Assumption Challenger</div>
+                            <div class="astatus">waiting</div>
+                        </div>
+                        <div class="arow" id="a6">
+                            <div class="adot"></div>
+                            <div class="aname">Decision Composer</div>
+                            <div class="astatus">waiting</div>
+                        </div>
+                    </div>
                 </div>
+            </div>
+        </div>
 
-                <fieldset>
-                    <label>
-                        <input type="checkbox" id="is_first_property" checked>
-                        This is my first property
-                    </label>
-                </fieldset>
+        <!-- ═══ REPORT ═══ -->
+        <div id="report">
 
-                <label>
-                    Anything else about this property? (optional)
-                    <textarea id="property_notes" rows="3"
-                        placeholder="e.g. 'Broker said registration is extra ₹7L' or 'Society is 15 years old, redevelopment rumors'"></textarea>
-                </label>
+            <!-- VERDICT -->
+            <div id="r-verdict"></div>
 
-                <div class="form-nav">
-                    <button onclick="prevStep(1)" class="secondary">← Back</button>
-                    <button onclick="nextStep(3)">Next: Review →</button>
+            <!-- CASH FLOW HERO — most important section -->
+            <div class="cashflow-hero" id="r-cashflow"></div>
+
+            <!-- SCORECARD -->
+            <div class="scorecard" id="r-scorecard"></div>
+
+            <!-- STRESS + PROPERTY -->
+            <div class="row2">
+                <div class="rcard">
+                    <div class="rcard-title">⚡ What Happens If Things Go Wrong</div>
+                    <div id="r-stress" class="stress-grid"></div>
+                </div>
+                <div class="rcard">
+                    <div class="rcard-title">🏘 Is This Property Worth It?</div>
+                    <div id="r-property"></div>
                 </div>
             </div>
 
-            <!-- Step 3: Review -->
-            <div id="step-3" class="form-step" style="display:none">
-                <h2>Review Your Information</h2>
-                <p>Make sure everything looks right before we analyze.</p>
+            <!-- RENT VS BUY -->
+            <div class="rcard" style="margin-bottom:14px">
+                <div class="rcard-title">🔄 Renting vs Buying — The Real Cost</div>
+                <div id="r-rvb"></div>
+            </div>
 
-                <div id="review-summary"></div>
+            <!-- CHALLENGES -->
+            <div class="rcard" style="margin-bottom:14px">
+                <div class="rcard-title">⚠️ Assumptions Being Made About You</div>
+                <div id="r-challenges"></div>
+            </div>
 
-                <div class="form-nav">
-                    <button onclick="prevStep(2)" class="secondary">← Edit</button>
-                    <button onclick="submitAnalysis()" id="submit-btn">Analyze My Decision</button>
+            <!-- REASONS + ACTIONS -->
+            <div class="row2">
+                <div class="rcard">
+                    <div class="rcard-title">📋 Why This Verdict</div>
+                    <ul class="reason-list" id="r-reasons"></ul>
+                </div>
+                <div class="rcard">
+                    <div class="rcard-title">✅ What To Do Next</div>
+                    <ul class="action-list" id="r-actions"></ul>
                 </div>
             </div>
-        </section>
 
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- VIEW 3: LOADING                                                    -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <section id="loading-view" class="view" style="display:none">
-            <div class="loading-container">
-                <h2>Analyzing your decision...</h2>
-                <p>Our AI agents are working through your situation. This takes 20–40 seconds.</p>
+            <!-- FULL REASONING -->
+            <div class="rcard" style="margin-bottom:14px">
+                <div class="rcard-title">💬 Full Analysis</div>
+                <div id="r-reasoning" class="reasoning"></div>
+            </div>
 
-                <div class="agent-status-list">
-                    <div class="agent-row" id="agent-1-status">
-                        <span class="agent-icon">📋</span>
-                        <span class="agent-name">Structuring your information</span>
-                        <span class="agent-state waiting">waiting</span>
-                    </div>
-                    <div class="agent-row" id="agent-2-status">
-                        <span class="agent-icon">💰</span>
-                        <span class="agent-name">Analyzing affordability</span>
-                        <span class="agent-state waiting">waiting</span>
-                    </div>
-                    <div class="agent-row" id="agent-3-status">
-                        <span class="agent-icon">⚠️</span>
-                        <span class="agent-name">Stress-testing scenarios</span>
-                        <span class="agent-state waiting">waiting</span>
-                    </div>
-                    <div class="agent-row" id="agent-4-status">
-                        <span class="agent-icon">🏠</span>
-                        <span class="agent-name">Evaluating property & market</span>
-                        <span class="agent-state waiting">waiting</span>
-                    </div>
-                    <div class="agent-row" id="agent-5-status">
-                        <span class="agent-icon">🔍</span>
-                        <span class="agent-name">Challenging assumptions</span>
-                        <span class="agent-state waiting">waiting</span>
-                    </div>
-                    <div class="agent-row" id="agent-6-status">
-                        <span class="agent-icon">⚖️</span>
-                        <span class="agent-name">Composing final verdict</span>
-                        <span class="agent-state waiting">waiting</span>
-                    </div>
+            <!-- BLIND SPOTS + EMOTIONAL FLAGS -->
+            <div class="row2">
+                <div class="rcard">
+                    <div class="rcard-title">🔍 What's Not Being Considered</div>
+                    <div class="pills" id="r-blind"></div>
                 </div>
-                <progress id="loading-progress"></progress>
+                <div class="rcard">
+                    <div class="rcard-title">🧠 Cognitive Biases to Watch</div>
+                    <div class="pills" id="r-emo"></div>
+                </div>
             </div>
-        </section>
 
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- VIEW 4: DECISION REPORT                                            -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <section id="report-view" class="view" style="display:none">
-            <div id="report-content"></div>
+            <div class="meta" id="r-meta"></div>
+            <button class="btn-ghost" onclick="reset()">← Run Another Scenario</button>
+        </div>
 
-            <div class="report-actions">
-                <button onclick="resetToForm()" class="secondary">Analyze Another Property</button>
-                <button onclick="window.print()">Print / Save PDF</button>
-            </div>
-        </section>
+    </div>
 
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- VIEW 5: ERROR                                                      -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <section id="error-view" class="view" style="display:none">
-            <article class="error-card">
-                <h2>Something went wrong</h2>
-                <p id="error-message"></p>
-                <button onclick="resetToForm()">Try Again</button>
-            </article>
-        </section>
+    <script>
+        const API = '';
+        function esc(s) { const d = document.createElement('div'); d.textContent = String(s || ''); return d.innerHTML; }
+        function inr(n) { if (n == null) return '—'; return '₹' + Math.round(n).toLocaleString('en-IN'); }
+        function pct(n) { return (n * 100).toFixed(1) + '%'; }
+        function preview(el, previewId) {
+            const v = +el.value;
+            const p = document.getElementById(previewId);
+            if (!p) return;
+            p.textContent = v > 0 ? '= ' + inr(v) : '';
+        }
 
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <!-- VIEW 6: ABOUT / HOW IT WORKS                                       -->
-        <!-- ═══════════════════════════════════════════════════════════════════ -->
-        <section id="about-view" class="view" style="display:none">
-            <h2>How Niv AI Works</h2>
-            <p>Niv AI runs your home-buying decision through 6 specialized AI agents, each focused on a different
-                dimension of the decision.</p>
+        /* Agent animation */
+        let _t = null;
+        function setA(id, st) {
+            const el = document.getElementById(id);
+            el.className = 'arow ' + st;
+            el.querySelector('.astatus').textContent = st === 'running' ? 'running…' : st === 'done' ? '✓ done' : 'waiting';
+        }
+        function startA() {
+            const ids = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6']; let i = 0;
+            function t() { if (i > 0) setA(ids[i - 1], 'done'); if (i < ids.length) { setA(ids[i], 'running'); i++; _t = setTimeout(t, 5500); } }
+            t();
+        }
+        function stopA() { clearTimeout(_t);['a1', 'a2', 'a3', 'a4', 'a5', 'a6'].forEach(id => setA(id, 'done')); }
 
-            <article>
-                <h3>📋 Agent 1: Context Synthesizer</h3>
-                <p>Structures your financial and property data. Identifies implicit assumptions. Flags missing
-                    information.</p>
-            </article>
-            <article>
-                <h3>💰 Agent 2: Financial Analyst</h3>
-                <p>Evaluates true affordability — not just EMI, but total cost of ownership, cash flow impact, and tax
-                    benefits.</p>
-            </article>
-            <article>
-                <h3>⚠️ Agent 3: Risk Simulator</h3>
-                <p>Stress-tests your decision against 4 real scenarios: job loss, interest rate hikes, unexpected
-                    expenses, and income stagnation.</p>
-            </article>
-            <article>
-                <h3>🏠 Agent 4: Property Analyst</h3>
-                <p>Evaluates the property against Mumbai market benchmarks. Checks pricing fairness, location risks, and
-                    rent-vs-buy math.</p>
-            </article>
-            <article>
-                <h3>🔍 Agent 5: Assumption Challenger</h3>
-                <p>The adversarial agent — finds holes in your assumptions, identifies blind spots, and flags emotional
-                    bias in your decision.</p>
-            </article>
-            <article>
-                <h3>⚖️ Agent 6: Decision Composer</h3>
-                <p>Synthesizes all analyses into a clear verdict (Safe / Risky / Reconsider) with specific reasoning and
-                    actionable advice.</p>
-            </article>
+        async function run() {
+            document.getElementById('err').style.display = 'none';
+            const inc = +document.getElementById('f_inc').value;
+            const price = +document.getElementById('p_price').value;
+            const dp = +document.getElementById('p_dp').value;
+            if (!inc || inc <= 0) return showErr('Monthly income is required');
+            if (!price || price <= 100000) return showErr('Property price must be above ₹1,00,000');
+            if (dp >= price) return showErr('Down payment must be less than property price');
+            const r = document.getElementById('p_rera').value;
+            const body = {
+                financial: {
+                    monthly_income: inc, spouse_income: +document.getElementById('f_sp').value || 0,
+                    employment_type: document.getElementById('f_emp').value,
+                    years_in_current_job: +document.getElementById('f_yrs').value || 2,
+                    expected_annual_growth_pct: +document.getElementById('f_grow').value || 8,
+                    existing_emis: +document.getElementById('f_emis').value || 0,
+                    monthly_expenses: +document.getElementById('f_exp').value || 0,
+                    current_rent: +document.getElementById('f_rent').value || 0,
+                    liquid_savings: +document.getElementById('f_sav').value || 0,
+                    dependents: +document.getElementById('f_dep').value || 0,
+                    financial_notes: ''
+                },
+                property: {
+                    property_price: price, location_area: document.getElementById('p_loc').value || 'Andheri West',
+                    location_city: 'Mumbai', configuration: document.getElementById('p_cfg').value,
+                    carpet_area_sqft: +document.getElementById('p_sqft').value || 650,
+                    is_ready_to_move: document.getElementById('p_rdy').value === 'true',
+                    is_rera_registered: r === 'null' ? null : r === 'true',
+                    builder_name: document.getElementById('p_bld').value || '',
+                    possession_date: '', down_payment_available: dp,
+                    loan_tenure_years: +document.getElementById('p_ten').value || 20,
+                    expected_interest_rate: +document.getElementById('p_rate').value || 8.5,
+                    buyer_gender: document.getElementById('p_gen').value,
+                    is_first_property: true, property_notes: ''
+                }
+            };
+            document.getElementById('form-section').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('report').style.display = 'none';
+            startA();
+            try {
+                const res = await fetch(`${API}/api/v1/analyze`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (!res.ok) { const e = await res.json().catch(() => { }); throw new Error(e?.detail || `HTTP ${res.status}`); }
+                const data = await res.json();
+                stopA();
+                document.getElementById('loading').style.display = 'none';
+                render(data);
+                document.getElementById('report').style.display = 'block';
+                window.scrollTo(0, 0);
+            } catch (e) {
+                stopA();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('form-section').style.display = 'block';
+                showErr('Analysis failed: ' + e.message);
+            }
+        }
 
-            <article>
-                <h3>Trust & Transparency</h3>
-                <p>Every financial number in the report is calculated by deterministic code — not generated by AI. The
-                    AI interprets and explains, but never invents numbers. All reasoning is traceable.</p>
-            </article>
+        function showErr(m) { const el = document.getElementById('err'); el.style.display = 'block'; el.textContent = '⚠ ' + m; }
 
-            <button onclick="showView('landing-view')" class="secondary">← Back</button>
-        </section>
+        function render(r) {
+            const c = r.computed_numbers || {};
+            const v = (r.verdict || 'risky').toLowerCase();
+            const fin_summary = r.financial_summary || {};
 
-    </main>
+            /* ── VERDICT ── */
+            const icons = { safe: '✅', risky: '⚠️', reconsider: '🚫' };
+            document.getElementById('r-verdict').innerHTML = `
+    <div class="verdict ${v}">
+      <div class="v-icon">${icons[v] || '⚠️'}</div>
+      <div>
+        <div class="v-word">${esc(v)}</div>
+        <div class="v-reason">${esc(r.verdict_reason || '')}</div>
+        <div class="v-conf">Confidence: ${r.confidence_score || '?'}/10</div>
+      </div>
+    </div>`;
 
-    <footer class="container">
-        <small>Niv AI is for informational purposes only. Not financial advice. Consult a qualified advisor.</small>
-    </footer>
+            /* ── CASH FLOW HERO ── */
+            // Pull from form inputs via stored payload — re-read values
+            const userIncome = +document.getElementById('f_inc').value || 0;
+            const spouseInc = +document.getElementById('f_sp').value || 0;
+            const existEMIs = +document.getElementById('f_emis').value || 0;
+            const expenses = +document.getElementById('f_exp').value || 0;
+            const household = userIncome + spouseInc;
+            const emi = c.monthly_emi || 0;
+            const ownership = c.monthly_ownership_cost || 0;
+            const totalOut = ownership + existEMIs + expenses;
+            const surplus = household - totalOut;
+            const surplusCls = surplus > 20000 ? 'good' : surplus > 5000 ? 'warn' : 'crit';
+            const surplusMsg = surplus > 20000
+                ? `After paying everything — EMI, maintenance, expenses, existing loans — you have ${inr(surplus)} left each month. That's a healthy buffer.`
+                : surplus > 5000
+                    ? `After all obligations you're left with just ${inr(surplus)}/month. One unexpected expense could strain your cash flow.`
+                    : surplus > 0
+                        ? `You're left with only ${inr(surplus)}/month after all obligations. This is critically thin — any income drop or unexpected cost puts you at risk of default.`
+                        : `Your outgoings (${inr(totalOut)}) EXCEED your income (${inr(household)}). This purchase is not financially viable as-is.`;
 
-    <script src="/static/app.js"></script>
+            const maxFlow = household;
+            const barPct = (n) => Math.min(Math.max((n / maxFlow) * 100, 2), 100).toFixed(1);
+
+            document.getElementById('r-cashflow').innerHTML = `
+    <div class="cf-title">💸 Your Monthly Cash Flow After This Purchase</div>
+    <div class="cf-main">
+      <div class="cf-surplus-box">
+        <div class="cf-surplus-label">Monthly Surplus</div>
+        <div class="cf-surplus-value ${surplusCls}">${surplus >= 0 ? inr(surplus) : '−' + inr(Math.abs(surplus))}</div>
+        <div class="cf-surplus-sub ${surplusCls}">${surplus > 20000 ? '✓ Healthy buffer' : surplus > 5000 ? '⚠ Thin — be careful' : '✗ Critical — very risky'}</div>
+      </div>
+      <div class="cf-waterfall">
+        <div class="cf-row">
+          <span class="cf-row-label">Total Household Income</span>
+          <span class="cf-row-amount income">+${inr(household)}</span>
+          <div class="cf-bar-wrap"><div class="cf-bar income" style="width:100%"></div></div>
+        </div>
+        <div class="cf-row">
+          <span class="cf-row-label">New Home EMI</span>
+          <span class="cf-row-amount out">−${inr(emi)}</span>
+          <div class="cf-bar-wrap"><div class="cf-bar out" style="width:${barPct(emi)}%"></div></div>
+        </div>
+        <div class="cf-row">
+          <span class="cf-row-label">Maintenance + Insurance</span>
+          <span class="cf-row-amount out">−${inr(ownership - emi)}</span>
+          <div class="cf-bar-wrap"><div class="cf-bar out" style="width:${barPct(ownership - emi)}%"></div></div>
+        </div>
+        ${existEMIs > 0 ? `<div class="cf-row">
+          <span class="cf-row-label">Existing Loan EMIs</span>
+          <span class="cf-row-amount out">−${inr(existEMIs)}</span>
+          <div class="cf-bar-wrap"><div class="cf-bar out" style="width:${barPct(existEMIs)}%"></div></div>
+        </div>`: ''}
+        <div class="cf-row">
+          <span class="cf-row-label">Living Expenses</span>
+          <span class="cf-row-amount out">−${inr(expenses)}</span>
+          <div class="cf-bar-wrap"><div class="cf-bar out" style="width:${barPct(expenses)}%"></div></div>
+        </div>
+        <div class="cf-divider"></div>
+        <div class="cf-row">
+          <span class="cf-row-label"><strong>Left Over Each Month</strong></span>
+          <span class="cf-row-amount surplus ${surplusCls}">${surplus >= 0 ? '+' + inr(surplus) : '−' + inr(Math.abs(surplus))}</span>
+          <div class="cf-bar-wrap"><div class="cf-bar surplus ${surplusCls}" style="width:${surplus > 0 ? barPct(Math.abs(surplus)) : 100}%"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cf-context">${surplusMsg}</div>`;
+
+            /* ── SCORECARD ── */
+            const emiR = c.emi_to_income_ratio || 0;
+            const runway = c.emergency_runway_months || 0;
+            const dpR = c.down_payment_to_savings_ratio || 0;
+            const spass = (r.stress_scenarios || []).filter(s => s.can_survive).length;
+            const stot = (r.stress_scenarios || []).length;
+            const crits = (r.assumptions_challenged || []).filter(a => ['critical', 'high'].includes(a.severity)).length;
+            const pv = r.property_assessment?.price_assessment?.verdict || '';
+            const beY = c.rent_vs_buy_break_even_years || 0;
+
+            const sc = (state, label, val, verdict, ctx) => `
+    <div class="sc-item ${state}">
+      <div class="sc-label">${label}</div>
+      <div class="sc-val">${val}</div>
+      <div class="sc-verdict">${verdict}</div>
+      <div class="sc-ctx">${ctx}</div>
+    </div>`;
+
+            const emiSt = emiR < .30 ? 'pass' : emiR < .45 ? 'warn' : 'fail';
+            const runSt = runway >= 6 ? 'pass' : runway >= 3 ? 'warn' : 'fail';
+            const dpSt = dpR < .60 ? 'pass' : dpR < .80 ? 'warn' : 'fail';
+            const ssSt = spass >= 3 ? 'pass' : spass >= 2 ? 'warn' : 'fail';
+            // Risk flags: on SAFE verdict, show as neutral (adversarial agent always finds issues)
+            // On RISKY/RECONSIDER, show as genuine red flags
+            const asSt = v === 'safe' ? (crits === 0 ? 'pass' : 'neutral') : (crits === 0 ? 'pass' : crits <= 1 ? 'warn' : 'fail');
+            const assVerdict = v === 'safe'
+                ? (crits === 0 ? '✓ No issues raised' : `ℹ ${crits} hypothetical risks noted`)
+                : (crits === 0 ? '✓ No critical risks' : crits <= 1 ? `⚠ ${crits} risk found` : `✗ ${crits} risks found`);
+            const pvM = { good_value: 'pass', fair: 'pass', slightly_overpriced: 'warn', overpriced: 'fail', no_benchmark: 'neutral' };
+            const pvL = { good_value: '✓ Good Value', fair: '✓ Fair', slightly_overpriced: '⚠ Slightly High', overpriced: '✗ Overpriced', no_benchmark: '— No Data' };
+
+            document.getElementById('r-scorecard').innerHTML =
+                sc(emiSt, 'EMI / Income', pct(emiR),
+                    emiR < .30 ? '✓ Healthy — under 30%' : emiR < .45 ? '⚠ Stretched — 30–45%' : '✗ Too High — above 45%',
+                    `Your EMI is ${inr(emi)}/mo out of ${inr(household)} income`) +
+                sc(runSt, 'Emergency Runway', runway.toFixed(1) + ' mo',
+                    runway >= 6 ? `✓ ${runway.toFixed(1)} months of cover` : runway >= 3 ? `⚠ Only ${runway.toFixed(1)} months` : `✗ Only ${runway.toFixed(1)} months — critical`,
+                    `Post-purchase savings: ${inr(c.post_purchase_savings)}`) +
+                sc(dpSt, 'Down Payment Used', pct(dpR),
+                    dpR < .60 ? '✓ Comfortable — under 60%' : dpR < .80 ? '⚠ Using 60–80% of savings' : '✗ Over 80% of savings',
+                    `${inr(+document.getElementById('p_dp').value)} of ${inr(+document.getElementById('f_sav').value)} savings`) +
+                sc(ssSt, 'Stress Tests', `${spass} / ${stot}`,
+                    spass >= 3 ? `✓ Passes ${spass} of ${stot} scenarios` : spass >= 2 ? `⚠ Passes ${spass} of ${stot} scenarios` : `✗ Passes only ${spass} of ${stot}`,
+                    'Job loss, rate hike, expense shock, stagnation') +
+                sc(asSt, 'Future Risk Flags', crits.toString(), assVerdict,
+                    v === 'safe' ? 'Hypothetical future risks only' : 'Critical and high-severity risks') +
+                sc(pvM[pv] || 'neutral', 'Price vs Market', inr(r.property_assessment?.price_assessment?.price_per_sqft) + '/sqft',
+                    pvL[pv] || '— No Benchmark',
+                    `Area median: ${inr(r.property_assessment?.price_assessment?.area_median_per_sqft)}/sqft`);
+
+            /* ── STRESS ── */
+            document.getElementById('r-stress').innerHTML = (r.stress_scenarios || []).map(s => {
+                const cls = s.can_survive ? 'pass' : 'fail';
+                return `<div class="sc2 ${cls}">
+      <div class="sc2-head"><span class="sc2-name">${esc((s.name || '').replace(/_/g, ' '))}</span><span class="badge ${cls}">${s.can_survive ? 'SURVIVES' : 'AT RISK'}</span></div>
+      <div class="sc2-key">${esc(s.key_number || '')}</div>
+      ${s.mitigation ? `<div class="sc2-tip">${esc(s.mitigation)}</div>` : ''}
+    </div>`;
+            }).join('');
+
+            /* ── PROPERTY ── */
+            const pa = r.property_assessment || {};
+            const pasm = pa.price_assessment || {};
+            const prem = pasm.premium_over_market_pct || 0;
+            const prc = (prem > 25 ? 'var(--red)' : prem > 10 ? 'var(--yellow)' : 'var(--green)');
+            document.getElementById('r-property').innerHTML = `
+    <table class="dtable" style="margin-bottom:12px">
+      <tr><td>Your price/sqft</td><td>${inr(pasm.price_per_sqft)}</td></tr>
+      <tr><td>Area median/sqft</td><td>${inr(pasm.area_median_per_sqft)}</td></tr>
+      <tr><td>vs Market</td><td style="color:${prc}">${prem > 0 ? '+' : ''}${(prem || 0).toFixed(1)}%</td></tr>
+      <tr><td>Verdict</td><td>${esc(pasm.verdict || '—')}</td></tr>
+    </table>
+    ${(pa.property_flags || []).map(f => `<div class="flag ${f.severity || 'low'}"><span class="flag-name">${esc(f.flag)}</span> — ${esc(f.detail)}</div>`).join('')}
+    ${pa.location_analysis ? `<div style="font-size:12px;color:var(--text-muted);margin-top:12px;line-height:1.55">${esc(pa.location_analysis)}</div>` : ''}`;
+
+            /* ── RENT VS BUY ── */
+            const rvb = r.rent_vs_buy || {};
+            const beClr = beY < 10 ? 'var(--green)' : beY < 20 ? 'var(--yellow)' : 'var(--red)';
+            const beMsg = beY < 10 ? `✓ You break even in ${beY.toFixed(1)} years. Buying makes financial sense long-term.`
+                : beY < 20 ? `⚠ Break-even at ${beY.toFixed(1)} years. You need to stay in this home for a long time for buying to beat renting.`
+                    : `✗ Break-even is ${beY.toFixed(1)} years away. Financially, renting and investing the down payment would likely serve you better.`;
+            const extraMo = Math.round((rvb.buying_monthly_cost || 0) - (rvb.equivalent_monthly_rent || 0));
+            document.getElementById('r-rvb').innerHTML = `
+    <div class="rvb-compare">
+      <div class="rvb-box rent"><div class="rvb-box-label">If You Rent</div><div class="rvb-box-val">${inr(rvb.equivalent_monthly_rent)}</div><div class="rvb-box-sub">per month</div></div>
+      <div class="rvb-box buy"><div class="rvb-box-label">If You Buy</div><div class="rvb-box-val">${inr(rvb.buying_monthly_cost)}</div><div class="rvb-box-sub">per month (EMI + maintenance)</div></div>
+    </div>
+    <div class="rvb-diff">
+      Buying costs you <strong style="color:var(--yellow)">${inr(extraMo)} more per month</strong> than renting an equivalent flat.
+      That's <strong>${inr(extraMo * 12)}/year</strong> extra. ${beMsg}
+    </div>`;
+
+            /* ── CHALLENGES ── */
+            document.getElementById('r-challenges').innerHTML = (r.assumptions_challenged || []).map(ch => `
+    <div class="challenge ${esc(ch.severity || 'medium')}">
+      <div class="ch-top"><span class="sev ${esc(ch.severity || 'medium')}">${esc(ch.severity || 'medium')}</span><span class="ch-assume">${esc(ch.assumption || '')}</span></div>
+      <div class="ch-body">${esc(ch.challenge || '')}</div>
+      <div class="ch-impact">Potential impact: ${esc(ch.impact || '')}</div>
+    </div>`).join('') || '<div style="font-size:13px;color:var(--text-muted)">No major assumptions challenged</div>';
+
+            /* ── REASONS + ACTIONS ── */
+            document.getElementById('r-reasons').innerHTML = (r.top_reasons || []).map(t => `<li>${esc(t)}</li>`).join('');
+            document.getElementById('r-actions').innerHTML = (r.recommended_actions || []).map(a => `<li>${esc(a)}</li>`).join('');
+            document.getElementById('r-reasoning').textContent = r.full_reasoning || 'No reasoning provided.';
+
+            /* ── BLIND + EMO ── */
+            document.getElementById('r-blind').innerHTML = (r.blind_spots || []).map(b => `<div class="pill">${esc(b)}</div>`).join('') || '<span style="font-size:12px;color:var(--text-muted)">None identified</span>';
+            document.getElementById('r-emo').innerHTML = (r.emotional_flags || []).map(f => `<div class="pill" style="border-color:var(--accent-dim);color:#a89cf7">${esc(f)}</div>`).join('') || '<span style="font-size:12px;color:var(--text-muted)">None identified</span>';
+
+            document.getElementById('r-meta').textContent = `Analysis in ${r._meta?.pipeline_time_seconds || '?'}s · ${(r.data_sources || []).join(' · ')}`;
+        }
+
+        function reset() {
+            document.getElementById('report').style.display = 'none';
+            document.getElementById('form-section').style.display = 'block';
+            ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'].forEach(id => { const el = document.getElementById(id); el.className = 'arow'; el.querySelector('.astatus').textContent = 'waiting'; });
+            window.scrollTo(0, 0);
+        }
+    </script>
 </body>
 
 </html>
