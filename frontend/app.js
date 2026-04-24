@@ -56,28 +56,61 @@ function goStep(n) {
     document.querySelectorAll('[data-step]').forEach(el => el.classList.remove('active'));
     document.querySelector(`[data-step="${n}"]`).classList.add('active');
 
-    document.querySelectorAll('.wizard-step').forEach((el, idx) => {
+    document.querySelectorAll('.w-step').forEach((el, idx) => {
         el.classList.remove('active', 'completed');
         if (idx + 1 < n) el.classList.add('completed');
         if (idx + 1 === n) el.classList.add('active');
     });
+    
+    // Fill the connector lines
+    const fill1 = document.getElementById('w-fill-1');
+    const fill2 = document.getElementById('w-fill-2');
+    if (fill1 && fill2) {
+        if (n === 1) { fill1.style.width = '0%'; fill2.style.width = '0%'; }
+        else if (n === 2) { fill1.style.width = '100%'; fill2.style.width = '0%'; }
+        else if (n === 3) { fill1.style.width = '100%'; fill2.style.width = '100%'; }
+    }
+
     currentStep = n;
     window.scrollTo(0, 0);
-    if (n === 2) updateEMIPreview();
+    if (n === 2) { updateEMIPreview(); loadMarketRates(); }
 }
 
 function showAllSteps(e) {
     e.preventDefault();
-    document.querySelector('.wizard-progress').style.display = 'none';
-    document.querySelectorAll('.wizard-nav').forEach(el => el.style.display = 'none');
+    document.querySelector('.wizard-bar').style.display = 'none';
     document.querySelectorAll('[data-step]').forEach(el => el.classList.add('active'));
     e.target.style.display = 'none';
-    // Add a submit button at the bottom
     const btn = document.createElement('button');
     btn.className = 'btn-primary';
     btn.textContent = 'Run Full AI Analysis — 6 Agents';
     btn.onclick = onSubmitClick;
     document.querySelector('[data-step="3"]').appendChild(btn);
+}
+
+// --- NEW FIELD HANDLERS ---
+async function verifyGST() {
+    const gstin = getVal('builder_gstin');
+    const resDiv = document.getElementById('gst-result');
+    if(!gstin) return;
+    
+    resDiv.textContent = "Verifying...";
+    resDiv.style.color = "var(--text-dim)";
+    
+    try {
+        const res = await fetch(`${API}/api/v1/tools/gst-check?gstin=${encodeURIComponent(gstin)}`);
+        const data = await res.json();
+        
+        if (res.ok && data.legal_name) {
+            resDiv.innerHTML = `<span style="color:var(--green)">✓ Valid: ${esc(data.legal_name)}</span>`;
+            document.getElementById('builder_name').value = data.legal_name; // Sync across fields
+        } else {
+            resDiv.textContent = "⚠️ Could not resolve GSTIN";
+            resDiv.style.color = "var(--yellow)";
+        }
+    } catch(e) {
+        resDiv.textContent = "Error verifying GST";
+    }
 }
 
 // --- LIVE METRICS (STEP 1 & 2) ---
@@ -86,9 +119,16 @@ function updateFinancialHealth() {
     const emis = getNum('existing_emis'); const exp = getNum('monthly_expenses');
     const capacity = inc + sp - emis - exp;
     const el = document.getElementById('financial-health');
-    el.textContent = `You can currently save approximately ${inr(capacity)} per month`;
-    el.style.color = capacity > 20000 ? 'var(--green)' : capacity >= 5000 ? 'var(--yellow)' : 'var(--red)';
-    el.style.borderColor = capacity > 20000 ? 'var(--green-border)' : capacity >= 5000 ? 'var(--yellow-border)' : 'var(--red-border)';
+    if(el) {
+        el.textContent = inr(capacity);
+        el.style.color = capacity > 20000 ? 'var(--green)' : capacity >= 5000 ? 'var(--yellow)' : 'var(--red)';
+    }
+    const fill = document.getElementById('health-fill-bar');
+    if(fill) {
+        const pct = Math.min(Math.max((capacity / (inc + sp > 0 ? inc + sp : 1)) * 100, 0), 100);
+        fill.style.width = pct + '%';
+        fill.style.background = capacity > 20000 ? 'var(--green)' : capacity >= 5000 ? 'var(--yellow)' : 'var(--red)';
+    }
 }
 
 function calculateClientEMI(principal, annualRatePct, tenureYears) {
@@ -97,6 +137,8 @@ function calculateClientEMI(principal, annualRatePct, tenureYears) {
     const n = tenureYears * 12;
     return principal * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
 }
+
+let marketRatesData = null;
 
 let emiDebounce;
 function updateEMIPreview() {
@@ -113,33 +155,32 @@ function updateEMIPreview() {
         const surplus = household - emi - emis - exp;
         const ratio = household > 0 ? emi / household : 0;
 
-        document.getElementById('prev-loan').textContent = principal > 0 ? inr(principal) : '—';
-        document.getElementById('prev-emi').textContent = emi > 0 ? inr(emi) : '—';
+        document.getElementById('ep-loan').textContent = principal > 0 ? inr(principal) : '—';
+        document.getElementById('ep-emi').textContent = emi > 0 ? inr(emi) : '—';
 
-        const surpEl = document.getElementById('prev-surplus');
+        const surpEl = document.getElementById('ep-surplus');
         surpEl.textContent = surplus !== 0 ? (surplus >= 0 ? inr(surplus) : '−' + inr(Math.abs(surplus))) : '—';
         surpEl.style.color = surplus > 20000 ? 'var(--green)' : surplus > 5000 ? 'var(--yellow)' : 'var(--red)';
 
-        const ratioEl = document.getElementById('prev-ratio');
+        const ratioEl = document.getElementById('ep-ratio');
         ratioEl.textContent = ratio > 0 ? (ratio * 100).toFixed(1) + '%' : '—';
         ratioEl.style.color = ratio < 0.30 ? 'var(--green)' : ratio < 0.45 ? 'var(--yellow)' : 'var(--red)';
 
-        const fillEl = document.getElementById('emi-comfort-fill');
-        const lblEl = document.getElementById('emi-comfort-label');
-        fillEl.style.width = Math.min(ratio * 200, 100) + '%';
-
+        const zoneEl = document.getElementById('ep-zone');
         if (ratio < 0.30) {
-            fillEl.style.background = 'var(--green)'; lblEl.style.color = 'var(--green)';
-            lblEl.textContent = '✓ Comfortable Zone — EMI is well within safe limits';
+            zoneEl.style.color = 'var(--green-light)';
+            zoneEl.textContent = 'COMFORTABLE — EMI is safely within limits';
         } else if (ratio < 0.45) {
-            fillEl.style.background = 'var(--yellow)'; lblEl.style.color = 'var(--yellow)';
-            lblEl.textContent = '⚠ Stretched Zone — manageable but leaves little buffer';
+            zoneEl.style.color = 'var(--yellow-light)';
+            zoneEl.textContent = 'STRETCHED — manageable but thin margin';
         } else if (ratio > 0) {
-            fillEl.style.background = 'var(--red)'; lblEl.style.color = 'var(--red)';
-            lblEl.textContent = '✗ Danger Zone — this EMI is too high for your income';
+            zoneEl.style.color = 'var(--red-light)';
+            zoneEl.textContent = 'DANGER — this EMI is dangerously high';
         } else {
-            lblEl.textContent = '';
+            zoneEl.textContent = '';
         }
+        // Show rate warning if market data is loaded
+        if (marketRatesData && rate > 0) updateRateWarning(rate, marketRatesData);
     }, 300);
 }
 
@@ -214,6 +255,13 @@ function proceedFromFriction() { closeFrictionGate(); submitAnalysis(); }
 // --- SUBMISSION & API ---
 function collectFormData() {
     const r = getVal('is_rera_registered');
+    
+    let combinedNotes = getVal('property_notes') || '';
+    const gstin = getVal('builder_gstin');
+    const rera = getVal('rera_number');
+    if (gstin) combinedNotes += (combinedNotes ? ' | ' : '') + 'Builder GSTIN: ' + gstin;
+    if (rera) combinedNotes += (combinedNotes ? ' | ' : '') + 'RERA Number: ' + rera;
+
     return {
         financial: {
             monthly_income: getNum('monthly_income'), spouse_income: getNum('spouse_income'),
@@ -234,7 +282,7 @@ function collectFormData() {
             loan_tenure_years: getNum('loan_tenure_years') || 20,
             expected_interest_rate: getNum('expected_interest_rate') || 8.5,
             buyer_gender: getVal('buyer_gender'), commute_distance_km: getNum('commute_distance_km') || 0,
-            is_first_property: getVal('is_first_property') === 'true', property_notes: getVal('property_notes')
+            is_first_property: getVal('is_first_property') === 'true', property_notes: combinedNotes
         },
         output_language: selectedLanguage,
         behavioral_checklist_responses: Object.keys(frictionGateAnswers).length ? frictionGateAnswers : null
@@ -291,14 +339,12 @@ function renderReport(r) {
     document.getElementById('compare-bar').style.display = 'block';
 
     // Verdict
-    const icons = { safe: '✅', risky: '⚠️', reconsider: '🚫' };
     document.getElementById('r-verdict').innerHTML = `
-                <div class="verdict ${v}" aria-label="Analysis verdict: ${v}">
-                    <div class="v-icon">${icons[v] || '⚠️'}</div>
-                    <div>
-                        <div class="v-word">${esc(v)}</div>
-                        <div class="v-reason">${esc(r.verdict_reason || '')}</div>
-                        <div class="v-conf">Confidence: ${r.confidence_score || '?'}/10</div>
+                <div class="verdict-display" aria-label="Analysis verdict: ${v}">
+                    <div class="verdict-word ${v.toUpperCase()}">${esc(v).toUpperCase()}</div>
+                    <div style="font-family:var(--font-mono); font-size:14px; margin-bottom:24px;">${esc(r.verdict_reason || '')}</div>
+                    <div class="verdict-meta">
+                        <span class="badge ${v === 'safe' ? 'low' : v === 'reconsider' ? 'critical' : 'high'}">CONFIDENCE: ${r.confidence_score || '?'}/10</span>
                     </div>
                 </div>`;
 
@@ -307,8 +353,8 @@ function renderReport(r) {
     const rwDiv = document.getElementById('r-research-warnings');
     if (rw.length > 0) {
         rwDiv.style.display = 'block';
-        rwDiv.innerHTML = `<div class="fcard-title" style="color:var(--yellow)">📚 Research-Backed Risk Signals</div>` +
-            rw.map(w => `<div class="challenge ${w.severity}"><span class="sev ${w.severity}">${w.severity}</span> <span class="ch-body">${esc(w.stat)}</span> <div class="ch-impact">Source: ${esc(w.source)}</div></div>`).join('');
+        rwDiv.innerHTML = `<div class="section-label" style="display:none;"><span>02 ·</span> RESEARCH WARNINGS</div>` +
+            rw.map(w => `<div class="research-warning ${w.severity}"><div style="font-family:var(--font-mono); font-size:10px; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px;">${w.severity} SEVERITY</div><div style="font-size:14px; color:var(--text); margin-bottom:8px;">${esc(w.stat)}</div><div style="font-family:var(--font-mono); font-size:10px; color:var(--text-muted)">Source: ${esc(w.source)}</div></div>`).join('');
     } else { rwDiv.style.display = 'none'; }
 
     // Cashflow
@@ -339,27 +385,28 @@ function renderReport(r) {
                 </div>`;
 
     // Scorecard
-    const sc = (state, label, val, verdict, ctx) => `
-                <div class="sc-item ${state}" aria-label="${label}: ${val}, status ${state}">
-                    <div class="sc-label">${label}</div>
-                    <div class="sc-val">${val}</div>
-                    <span class="sc-status-badge ${state}">${state === 'pass' ? 'PASS' : state === 'warn' ? 'CAUTION' : state === 'neutral' ? 'INFO' : 'FAIL'}</span>
-                    <div class="sc-verdict">${verdict}</div>
-                    <div class="sc-ctx">${ctx}</div>
+    const sc = (state, label, val, verdict, ctx) => {
+        let stColor = state === 'pass' ? 'var(--green)' : state === 'warn' ? 'var(--yellow)' : state === 'neutral' ? 'var(--text-faint)' : 'var(--red)';
+        return `<div class="metric-cell" aria-label="${label}: ${val}, status ${state}">
+                    <div class="metric-label">${label}</div>
+                    <div class="metric-number">${val}</div>
+                    <div class="metric-status" style="color:${stColor}">${state === 'pass' ? 'PASS' : state === 'warn' ? 'CAUTION' : state === 'neutral' ? 'INFO' : 'FAIL'} · ${verdict}</div>
                 </div>`;
+    };
 
     const emiR = c.emi_to_income_ratio || 0; const runway = c.emergency_runway_months || 0;
     const dpR = c.down_payment_to_savings_ratio || 0; const spass = (r.stress_scenarios || []).filter(s => s.can_survive).length;
     const crits = (r.assumptions_challenged || []).filter(a => ['critical', 'high'].includes(a.severity)).length;
     const pv = r.property_assessment?.price_assessment?.verdict || '';
 
-    document.getElementById('r-scorecard').innerHTML =
+    document.getElementById('r-scorecard').innerHTML = `<div class="metric-grid">` +
         sc(emiR < .30 ? 'pass' : emiR < .45 ? 'warn' : 'fail', 'EMI/Income', pct(emiR), emiR < .30 ? '✓ Healthy' : emiR < .45 ? '⚠ Stretched' : '✗ Too High', `EMI ${inr(emi)}`) +
         sc(runway >= 6 ? 'pass' : runway >= 3 ? 'warn' : 'fail', 'Runway', runway.toFixed(1) + 'mo', runway >= 6 ? '✓ Safe' : runway >= 3 ? '⚠ Low' : '✗ Critical', `Savings ${inr(c.post_purchase_savings)}`) +
         sc(dpR < .60 ? 'pass' : dpR < .80 ? 'warn' : 'fail', 'Savings Used', pct(dpR), dpR < .60 ? '✓ Safe' : '⚠ High', `${inr(lastInput?.property?.down_payment_available)} down`) +
         sc(spass >= 3 ? 'pass' : spass >= 2 ? 'warn' : 'fail', 'Stress Tests', `${spass}/4`, spass >= 3 ? '✓ Resilient' : '✗ Vulnerable', 'Scenarios passed') +
         sc(v === 'safe' ? (crits === 0 ? 'pass' : 'neutral') : (crits === 0 ? 'pass' : 'fail'), 'Risk Flags', crits.toString(), crits === 0 ? '✓ Clear' : `⚠ ${crits} risks`, 'High severity flags') +
-        sc({ good_value: 'pass', fair: 'pass', overpriced: 'fail' }[pv] || 'neutral', 'Price', inr(r.property_assessment?.price_assessment?.price_per_sqft) + '/sqf', pv.replace('_', ' ').toUpperCase(), 'vs Area Median');
+        sc({ good_value: 'pass', fair: 'pass', overpriced: 'fail' }[pv] || 'neutral', 'Price', inr(r.property_assessment?.price_assessment?.price_per_sqft) + '/sqf', pv.replace('_', ' ').toUpperCase(), 'vs Area Median')
+        + `</div>`;
 
     // True Cost
     if (c.true_total_acquisition_cost) {
@@ -374,17 +421,26 @@ function renderReport(r) {
     } else { document.getElementById('r-tco').parentElement.style.display = 'none'; }
 
     // Simple sections mapping
-    document.getElementById('r-stress').innerHTML = (r.stress_scenarios || []).map(s => `<div class="sc2 ${s.can_survive ? 'pass' : 'fail'}"><div class="sc2-head"><span class="sc2-name">${esc(s.name.replace(/_/g, ' '))}</span><span class="badge ${s.can_survive ? 'pass' : 'fail'}">${s.can_survive ? '✓ SURVIVES' : '✗ AT RISK'}</span></div><div class="sc2-key">${esc(s.key_number)}</div></div>`).join('');
+    document.getElementById('r-stress').innerHTML = (r.stress_scenarios || []).map(s => `
+        <div class="stress-row">
+            <div class="stress-indicator ${s.can_survive ? 'pass' : 'fail'}"></div>
+            <div class="stress-name">${esc(s.name.replace(/_/g, ' ').toUpperCase())}</div>
+            <div class="stress-key-number">${esc(s.key_number)}</div>
+            <div class="stress-badge" style="color:${s.can_survive ? 'var(--green)' : 'var(--red)'}">${s.can_survive ? 'SURVIVES' : 'AT RISK'}</div>
+        </div>`).join('');
 
     // Path to Safe
     if (r.path_to_safe) {
         const ps = document.getElementById('r-path-to-safe');
         ps.style.display = 'block';
-        ps.innerHTML = `<div class="rcard" style="border-color:var(--green-border)"><div class="rcard-title" style="color:var(--green)">💡 Path to Safe</div><div style="font-size:13px;color:var(--text-dim)">To achieve a SAFE verdict, you must either increase your down payment by <strong style="color:var(--green)">${inr(r.path_to_safe.min_additional_down_payment)}</strong> OR reduce the property price to <strong style="color:var(--green)">${inr(r.path_to_safe.max_viable_property_price)}</strong>. At your current savings rate, gathering this extra down payment will take approx <strong>${r.path_to_safe.months_to_save_at_current_rate.toFixed(1)} months</strong>.</div></div>`;
+        ps.innerHTML = `<div class="rcard" style="border-color:var(--green);"><div style="font-family:var(--font-mono); font-size:12px; color:var(--green); letter-spacing:1px; margin-bottom:16px;">💡 PATH TO SAFE</div><div style="font-size:14px;color:var(--text); line-height:1.7;">To achieve a SAFE verdict, you must either increase your down payment by <strong style="color:var(--green)">${inr(r.path_to_safe.min_additional_down_payment)}</strong> OR reduce the property price to <strong style="color:var(--green)">${inr(r.path_to_safe.max_viable_property_price)}</strong>. At your current savings rate, gathering this extra down payment will take approx <strong style="color:var(--text)">${r.path_to_safe.months_to_save_at_current_rate.toFixed(1)} months</strong>.</div></div>`;
     } else { document.getElementById('r-path-to-safe').style.display = 'none'; }
 
     const pa = r.property_assessment || {};
-    document.getElementById('r-property').innerHTML = `<table class="dtable"><tr><td>Your price/sqft</td><td>${inr(pa.price_assessment?.price_per_sqft)}</td></tr><tr><td>Area median</td><td>${inr(pa.price_assessment?.area_median_per_sqft)}</td></tr></table>` + (pa.property_flags || []).map(f => `<div class="flag ${f.severity}"><span class="flag-sev-text">${f.severity.toUpperCase()}</span><span class="flag-name">${esc(f.flag)}</span> — ${esc(f.detail)}</div>`).join('');
+    document.getElementById('r-property').innerHTML =
+        `<table class="dtable"><tr><td>Your price/sqft</td><td>${inr(pa.price_assessment?.price_per_sqft)}</td></tr><tr><td>Area median</td><td>${inr(pa.price_assessment?.area_median_per_sqft)}</td></tr></table>` +
+        (pa.property_flags || []).map(f => `<div class="flag ${f.severity}"><span class="flag-sev-text">${f.severity.toUpperCase()}</span><span class="flag-name">${esc(f.flag)}</span> — ${esc(f.detail)}</div>`).join('') +
+        renderOcCcStatus(pa.oc_cc_status);
 
     const rvb = r.rent_vs_buy || {};
     document.getElementById('r-rvb').innerHTML = `<div class="rvb-compare"><div class="rvb-box rent"><div class="rvb-box-label">If You Rent</div><div class="rvb-box-val">${inr(rvb.equivalent_monthly_rent)}</div></div><div class="rvb-box buy"><div class="rvb-box-label">If You Buy</div><div class="rvb-box-val">${inr(rvb.buying_monthly_cost)}</div></div></div><div class="rvb-diff">Break-even is <strong>${(c.rent_vs_buy_break_even_years || 0).toFixed(1)} years</strong>.</div>`;
@@ -769,7 +825,361 @@ function reset() {
     window.scrollTo(0, 0);
 }
 
-// --- INIT ---
+// ─────────────────────────────────────────────────────────────────
+// FEATURE 1: COUNTER-OFFER PDF
+// ─────────────────────────────────────────────────────────────────
+async function downloadCounterOffer() {
+    if (!lastReport || !lastInput) return;
+    const btn = document.getElementById('counter-offer-btn');
+    btn.textContent = '⏳ Generating PDF...';
+    btn.disabled = true;
+    try {
+        const res = await fetch(`${API}/api/v1/tools/counter-offer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ report: lastReport, input: lastInput, buyer_name: 'Home Buyer' })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'PDF generation failed');
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const loc = lastInput?.property?.location_area || 'property';
+        a.download = `NIV_AI_Counter_Offer_${loc.replace(/\s+/g, '_')}.pdf`;
+        a.href = url;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        alert('Could not generate counter-offer: ' + e.message);
+    } finally {
+        btn.textContent = '📄 Counter-Offer Letter';
+        btn.disabled = false;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// FEATURE 2: BANK EMAIL GENERATOR
+// ─────────────────────────────────────────────────────────────────
+let bankEmailContent = null;
+
+function openBankEmailModal() {
+    document.getElementById('bank-email-modal').style.display = 'flex';
+    document.getElementById('bank-email-content').style.display = 'none';
+    document.getElementById('bank-email-loading').style.display = 'none';
+    document.getElementById('bank-email-error').style.display = 'none';
+    document.getElementById('bank-email-actions').style.display = 'flex';
+    bankEmailContent = null;
+}
+
+function closeBankEmail() {
+    document.getElementById('bank-email-modal').style.display = 'none';
+}
+
+async function generateBankEmail() {
+    if (!lastReport || !lastInput) return;
+    const bank = document.getElementById('target-bank').value;
+    document.getElementById('bank-email-loading').style.display = 'block';
+    document.getElementById('bank-email-content').style.display = 'none';
+    document.getElementById('bank-email-error').style.display = 'none';
+    document.getElementById('bank-email-actions').style.display = 'none';
+    try {
+        const res = await fetch(`${API}/api/v1/tools/bank-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                computed_numbers: lastReport.computed_numbers || {},
+                raw_input: lastInput,
+                target_bank: bank
+            })
+        });
+        if (!res.ok) throw new Error('Email generation failed');
+        const data = await res.json();
+        bankEmailContent = data.full_email_text || '';
+        document.getElementById('bank-email-preview').textContent = bankEmailContent;
+        document.getElementById('bank-email-loading').style.display = 'none';
+        document.getElementById('bank-email-content').style.display = 'block';
+        // Show FOIR info
+        if (data.foir_pct) {
+            const fColor = data.foir_pct < 40 ? 'var(--green)' : data.foir_pct < 50 ? 'var(--yellow)' : 'var(--red)';
+            document.getElementById('bank-email-preview').insertAdjacentHTML('beforebegin',
+                `<div style="font-size:11px;color:${fColor};margin-bottom:8px;padding:6px 10px;
+                 background:var(--bg);border-radius:6px;border-left:2px solid ${fColor}">
+                 FOIR: ${data.foir_pct}% ${data.foir_pct < 40 ? '✓ Good' : data.foir_pct < 50 ? '⚠ Borderline' : '✗ High'}
+                 — banks prefer FOIR below 40%</div>`
+            );
+        }
+    } catch (e) {
+        document.getElementById('bank-email-loading').style.display = 'none';
+        document.getElementById('bank-email-error').style.display = 'block';
+        document.getElementById('bank-email-error').textContent = 'Failed to generate email: ' + e.message;
+        document.getElementById('bank-email-actions').style.display = 'flex';
+    }
+}
+
+function copyBankEmail() {
+    if (!bankEmailContent) return;
+    navigator.clipboard.writeText(bankEmailContent).then(() => {
+        const btn = document.getElementById('bank-email-copy-btn');
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => btn.textContent = 'Copy Email', 2000);
+    });
+}
+
+function openMailto() {
+    if (!bankEmailContent) return;
+    const subject = encodeURIComponent(`Home Loan Inquiry — ${lastInput?.property?.location_area || 'Property'}`);
+    window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(bankEmailContent)}`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// FEATURE 4: RERA QR SCANNER
+// ─────────────────────────────────────────────────────────────────
+async function scanReraQR(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById('rera-qr-status');
+    statusEl.textContent = '⏳ Scanning QR code...';
+    statusEl.style.color = 'var(--accent)';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const res = await fetch(`${API}/api/v1/documents/scan-rera-qr`, {
+            method: 'POST', body: formData
+        });
+        const data = await res.json();
+        if (data.success && data.extracted_rera_number) {
+            let msg = `✓ RERA: ${data.extracted_rera_number}`;
+            if (data.rera_data?.registration_status === 'active') msg += ' — Active ✓';
+            else if (data.rera_data?.risk_label) msg += ` — ${data.rera_data.risk_label}`;
+            statusEl.textContent = msg;
+            statusEl.style.color = 'var(--green)';
+        } else {
+            statusEl.textContent = data.error || 'No QR code detected';
+            statusEl.style.color = 'var(--red)';
+        }
+    } catch (e) {
+        statusEl.textContent = 'Scan failed — continue manually';
+        statusEl.style.color = 'var(--text-muted)';
+    }
+    input.value = '';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// FEATURE 5: MARKET RATES
+// ─────────────────────────────────────────────────────────────────
+async function loadMarketRates() {
+    const banner = document.getElementById('market-rates-banner');
+    const textEl = document.getElementById('market-rates-text');
+    if (!banner) return;
+    banner.style.display = 'flex';
+    textEl.textContent = 'Loading current rates...';
+    try {
+        const userRate = getNum('expected_interest_rate') || null;
+        const url = userRate ? `${API}/api/v1/market/rates?user_rate=${userRate}` : `${API}/api/v1/market/rates`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('rates unavailable');
+        const data = await res.json();
+        marketRatesData = data;
+        textEl.textContent = `Market rates: ${data.market_floor}%–${data.market_ceiling}% · RBI Repo: ${data.rbi_repo_rate}% · Source: ${data.data_source}`;
+        if (userRate) updateRateWarning(userRate, data);
+    } catch (e) {
+        textEl.textContent = 'Live rates unavailable — using Apr 2026 benchmarks (8.50–9.90%)';
+    }
+}
+
+function updateRateWarning(userRate, ratesData) {
+    const banner = document.getElementById('market-rates-banner');
+    const textEl = document.getElementById('market-rates-text');
+    if (!banner || !ratesData) return;
+    if (ratesData.rate_warning || (userRate && ratesData.market_floor && userRate < ratesData.market_floor)) {
+        const gap = Math.round((ratesData.market_floor - userRate) * 100);
+        textEl.innerHTML = `<span style="color:var(--yellow)">⚠ Your rate (${userRate}%) is ${gap}bps below market floor (${ratesData.market_floor}%). EMI may be higher than estimated.</span>`;
+    } else {
+        textEl.textContent = `Market rates: ${ratesData.market_floor}%–${ratesData.market_ceiling}% · RBI Repo: ${ratesData.rbi_repo_rate}%`;
+    }
+}
+
+function refreshMarketRates() { marketRatesData = null; loadMarketRates(); }
+
+// ─────────────────────────────────────────────────────────────────
+// FEATURE 7 & 8: DOCUMENT UPLOAD (EC + LOAN LETTER)
+// ─────────────────────────────────────────────────────────────────
+async function uploadEC(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const zone = input.closest('.doc-upload-zone') || input.parentElement;
+    zone.classList.add('uploading');
+    const resultDiv = document.getElementById('ec-result');
+    resultDiv.innerHTML = '<div style="font-size:11px;color:var(--accent);margin-top:8px">⏳ Analyzing EC...</div>';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('location_area', lastInput?.property?.location_area || 'Unknown');
+    formData.append('property_price', String(lastInput?.property?.property_price || 0));
+
+    try {
+        const res = await fetch(`${API}/api/v1/documents/parse-ec`, { method: 'POST', body: formData });
+        const data = await res.json();
+        zone.classList.remove('uploading');
+        if (data.success && data.analysis) {
+            const a = data.analysis;
+            const riskClass = a.risk_level || 'caution';
+            const riskColor = { clear: 'var(--green)', caution: 'var(--yellow)', high_risk: 'var(--red)' }[riskClass] || 'var(--text-muted)';
+            const mortgages = (a.mortgages || []).filter(m => m.status !== 'discharged');
+            resultDiv.innerHTML = `
+                <div class="doc-result-card ${riskClass}">
+                    <div style="font-weight:700;color:${riskColor};font-size:12px;margin-bottom:6px;text-transform:uppercase">
+                        ${riskClass.replace('_', ' ')} — ${a.has_encumbrances ? 'Encumbrances Found' : 'No Active Encumbrances'}
+                    </div>
+                    <div style="color:var(--text-dim);font-size:12px;margin-bottom:8px">${esc(a.summary || '')}</div>
+                    ${mortgages.length > 0 ? `<div style="color:var(--red);font-size:11px">⚠ Active mortgages: ${mortgages.map(m => esc(m.lender)).join(', ')}</div>` : ''}
+                    ${(a.legal_disputes || []).length > 0 ? `<div style="color:var(--red);font-size:11px">⚠ Legal dispute on record</div>` : ''}
+                    <div style="color:var(--text-muted);font-size:11px;margin-top:6px;font-style:italic">${esc(a.recommendation || '')}</div>
+                </div>`;
+        } else {
+            resultDiv.innerHTML = `<div style="color:var(--red);font-size:11px;margin-top:8px">✗ ${esc(data.error || 'Analysis failed')}</div>`;
+        }
+    } catch (e) {
+        zone.classList.remove('uploading');
+        resultDiv.innerHTML = '<div style="color:var(--red);font-size:11px;margin-top:8px">✗ Upload failed. Try again.</div>';
+    }
+    input.value = '';
+}
+
+async function uploadLoanLetter(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const zone = input.closest('.doc-upload-zone') || input.parentElement;
+    zone.classList.add('uploading');
+    const resultDiv = document.getElementById('loan-result');
+    resultDiv.innerHTML = '<div style="font-size:11px;color:var(--accent);margin-top:8px">⏳ Extracting loan terms...</div>';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const res = await fetch(`${API}/api/v1/documents/parse-loan-letter`, { method: 'POST', body: formData });
+        const data = await res.json();
+        zone.classList.remove('uploading');
+        if (data.success && data.data) {
+            const d = data.data;
+            const hasAutoFill = d.auto_fill?.loan_tenure_years || d.auto_fill?.interest_rate;
+            resultDiv.innerHTML = `
+                <div class="doc-result-card">
+                    <div style="font-weight:700;color:var(--green);font-size:12px;margin-bottom:8px">
+                        ✓ ${esc(d.bank_name || 'Bank')} Loan Letter Parsed
+                    </div>
+                    <table style="width:100%;font-size:11px;border-collapse:collapse">
+                        ${d.sanctioned_amount ? `<tr><td style="color:var(--text-muted);padding:2px 0">Sanctioned Amount</td><td style="color:var(--text);text-align:right">${inr(d.sanctioned_amount)}</td></tr>` : ''}
+                        ${d.interest_rate_pct ? `<tr><td style="color:var(--text-muted);padding:2px 0">Interest Rate</td><td style="color:var(--text);text-align:right">${d.interest_rate_pct}% (${d.rate_type || 'unknown'})</td></tr>` : ''}
+                        ${d.loan_tenure_years ? `<tr><td style="color:var(--text-muted);padding:2px 0">Tenure</td><td style="color:var(--text);text-align:right">${d.loan_tenure_years} years</td></tr>` : ''}
+                        ${d.processing_fee ? `<tr><td style="color:var(--yellow);padding:2px 0">Processing Fee</td><td style="color:var(--yellow);text-align:right">${inr(d.processing_fee)}</td></tr>` : ''}
+                        ${(d.hidden_charges || []).length > 0 ? `<tr><td colspan="2" style="color:var(--red);padding:4px 0;font-size:10px">⚠ Hidden charges: ${d.hidden_charges.map(h => esc(h)).join(' · ')}</td></tr>` : ''}
+                    </table>
+                    ${hasAutoFill ? `<button onclick="applyLoanAutoFill(${JSON.stringify(d.auto_fill || {}).replace(/"/g, '&quot;')})"
+                        style="margin-top:10px;width:100%;padding:8px;background:var(--accent-dim);
+                        border:1px solid var(--accent);border-radius:6px;color:var(--accent);
+                        font-size:11px;cursor:pointer">
+                        Apply to Form →
+                    </button>` : ''}
+                    ${d.sanctioned_amount && lastInput?.property?.property_price ?
+                        `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+                        Down Payment Needed: ${inr(Math.max(0, lastInput.property.property_price - d.sanctioned_amount))}
+                        </div>` : ''}
+                </div>`;
+        } else {
+            resultDiv.innerHTML = `<div style="color:var(--red);font-size:11px;margin-top:8px">✗ ${esc(data.error || 'Extraction failed')}</div>`;
+        }
+    } catch (e) {
+        zone.classList.remove('uploading');
+        resultDiv.innerHTML = '<div style="color:var(--red);font-size:11px;margin-top:8px">✗ Upload failed. Try again.</div>';
+    }
+    input.value = '';
+}
+
+function applyLoanAutoFill(autoFill) {
+    if (autoFill.interest_rate) {
+        const el = document.getElementById('expected_interest_rate');
+        if (el) { el.value = autoFill.interest_rate; updateEMIPreview(); }
+    }
+    if (autoFill.loan_tenure_years) {
+        const el = document.getElementById('loan_tenure_years');
+        if (el) { el.value = autoFill.loan_tenure_years; updateEMIPreview(); }
+    }
+    alert('Loan terms applied to form! Review and re-run analysis if needed.');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// FEATURE 9: GST HEALTH CHECK
+// ─────────────────────────────────────────────────────────────────
+async function checkBuilderGST() {
+    const gstin = (document.getElementById('builder_gstin')?.value || '').trim().toUpperCase();
+    const resultDiv = document.getElementById('gst-result');
+    const btn = document.getElementById('gst-check-btn');
+    if (!gstin || gstin.length !== 15) {
+        resultDiv.textContent = 'Enter 15-character GSTIN first';
+        resultDiv.style.color = 'var(--text-muted)';
+        return;
+    }
+    btn.textContent = '...';
+    btn.disabled = true;
+    try {
+        const res = await fetch(`${API}/api/v1/tools/gst-check?gstin=${encodeURIComponent(gstin)}`);
+        if (res.status === 422) {
+            resultDiv.textContent = 'Invalid GSTIN format';
+            resultDiv.style.color = 'var(--red)';
+            return;
+        }
+        const data = await res.json();
+        if (data.risk_flag) {
+            resultDiv.innerHTML = `<span style="color:var(--red)">✗ Risk — ${esc(data.risk_explanation)}</span>`;
+        } else if (data.registration_status === 'active') {
+            const filed = data.last_return_filed ? ` · Filed ${data.last_return_filed}` : '';
+            resultDiv.innerHTML = `<span style="color:var(--green)">✓ Active${filed}</span>`;
+        } else {
+            resultDiv.innerHTML = `<span style="color:var(--text-muted)">${esc(data.risk_explanation)}</span>`;
+        }
+    } catch (e) {
+        resultDiv.textContent = 'Verification unavailable';
+        resultDiv.style.color = 'var(--text-muted)';
+    } finally {
+        btn.textContent = 'Verify GST';
+        btn.disabled = false;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// FEATURE 10: OC/CC STATUS RENDER
+// ─────────────────────────────────────────────────────────────────
+function renderOcCcStatus(occc) {
+    if (!occc) return '';
+    const colorMap = {
+        low: 'var(--green)', medium: 'var(--yellow)',
+        high: 'var(--red)', critical: 'var(--red)'
+    };
+    const color = colorMap[occc.risk_level] || 'var(--text-muted)';
+    const label = (occc.risk_level || 'unknown').toUpperCase();
+    return `
+        <div style="margin-top:12px;padding:12px;background:var(--bg);
+             border-radius:8px;border-left:3px solid ${color}">
+            <div style="font-size:11px;font-weight:700;color:${color};
+                 text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
+                OC/CC Status: ${label}
+            </div>
+            <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">
+                ${esc(occc.overall_note || '')}
+            </div>
+            ${(occc.risk_flags || []).map(f =>
+                `<div style="font-size:11px;color:var(--yellow);margin-top:3px">⚠ ${esc(f)}</div>`
+            ).join('')}
+        </div>`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// INIT ---
 document.addEventListener('DOMContentLoaded', () => {
     updateFinancialHealth();
 

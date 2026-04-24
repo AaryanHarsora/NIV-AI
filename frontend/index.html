@@ -5,2331 +5,569 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NIV AI — Home Buying Decision Engine</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --bg: #080810;
-            --surface: #0e0e1a;
-            --border: #1c1c2e;
-            --border-bright: #2a2a40;
-            --text: #f0eeff;
-            --text-muted: #9896b8;
-            --text-dim: #c8c5e8;
-            --accent: #7c6af7;
-            --accent-dim: #3d3580;
-            --green: #22c55e;
-            --green-bg: #052010;
-            --green-border: #0f3020;
-            --yellow: #f59e0b;
-            --yellow-bg: #1a1200;
-            --yellow-border: #2a2000;
-            --red: #ef4444;
-            --red-bg: #180808;
-            --red-border: #2a1010;
-            --font-display: 'Syne', sans-serif;
-            --font-body: 'DM Sans', sans-serif;
-            --font-mono: 'DM Mono', monospace;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
-        body {
-            font-family: var(--font-body);
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-            font-size: 14.5px;
-            line-height: 1.65;
-            font-weight: 400;
-        }
-
-        /* ── HEADER ── */
-        .hdr {
-            border-bottom: 1px solid var(--border);
-            padding: 14px 28px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: var(--surface);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .logo {
-            font-family: var(--font-display);
-            font-size: 18px;
-            font-weight: 800;
-            color: var(--accent);
-            letter-spacing: -0.5px;
-        }
-
-        .logo em {
-            color: var(--text);
-            font-style: normal;
-        }
-
-        .hdr-sub {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 1px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-
-        .hdr-tag {
-            font-size: 11px;
-            color: var(--text-muted);
-            background: var(--border);
-            padding: 4px 10px;
-            border-radius: 20px;
-        }
-
-        /* ── LAYOUT ── */
-        .wrap {
-            max-width: 980px;
-            margin: 0 auto;
-            padding: 32px 20px;
-        }
-
-        /* ── WIZARD PROGRESS ── */
-        .wizard-progress {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 28px;
-            gap: 0;
-        }
-
-        .wizard-step {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-            opacity: 0.4;
-            transition: opacity 0.2s;
-        }
-
-        .wizard-step.active {
-            opacity: 1;
-        }
-
-        .wizard-step.completed {
-            opacity: 0.8;
-        }
-
-        .wizard-step-num {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            background: var(--border);
-            color: var(--text-muted);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: var(--font-display);
-            font-size: 13px;
-            font-weight: 700;
-            transition: background 0.2s, color 0.2s;
-        }
-
-        .wizard-step.active .wizard-step-num {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        .wizard-step.completed .wizard-step-num {
-            background: var(--green);
-            color: #fff;
-        }
-
-        .wizard-step-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .wizard-step.active .wizard-step-label {
-            color: var(--accent);
-        }
-
-        .wizard-step.completed .wizard-step-label {
-            color: var(--green);
-        }
-
-        .wizard-connector {
-            flex: 1;
-            height: 1px;
-            background: var(--border);
-            min-width: 40px;
-            max-width: 80px;
-        }
-
-        .wizard-nav {
-            display: flex;
-            gap: 12px;
-            margin-top: 16px;
-        }
-
-        [data-step] {
-            display: none;
-        }
-
-        [data-step].active {
-            display: block;
-        }
-
-        /* ── LANGUAGE SELECTOR ── */
-        .lang-selector {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-            padding: 12px 14px;
-            background: var(--bg);
-            border-radius: 8px;
-            border: 1px solid var(--border);
-        }
-
-        .lang-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-
-        .lang-options {
-            display: flex;
-            gap: 6px;
-        }
-
-        .lang-opt {
-            padding: 5px 14px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 500;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .lang-opt.active {
-            border-color: var(--accent);
-            background: rgba(124, 106, 247, 0.15);
-            color: var(--accent);
-        }
-
-        .lang-note {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-
-        /* ── FORM CARDS ── */
-        .fcard {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 24px;
-            margin-bottom: 14px;
-        }
-
-        .fcard-title {
-            font-family: var(--font-display);
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--accent);
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-bottom: 18px;
-        }
-
-        .g2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        @media(max-width:600px) {
-            .g2 {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .field label {
-            display: block;
-            font-size: 11.5px;
-            font-weight: 500;
-            color: var(--text-dim);
-            margin-bottom: 5px;
-            letter-spacing: 0.3px;
-        }
-
-        .field input,
-        .field select {
-            width: 100%;
-            background: var(--bg);
-            border: 1px solid var(--border-bright);
-            border-radius: 8px;
-            padding: 12px 14px;
-            color: var(--text);
-            /* 44px min touch target */
-            font-family: var(--font-mono);
-            font-size: 13px;
-            outline: none;
-            transition: border-color 0.15s, box-shadow 0.15s;
-            min-height: 44px;
-        }
-
-        .field input:focus,
-        .field select:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.1);
-        }
-
-        .field input[aria-invalid="true"] {
-            border-color: var(--red);
-        }
-
-        .field input::placeholder {
-            color: var(--border-bright);
-        }
-
-        .field select option {
-            background: var(--surface);
-        }
-
-        .field-helper {
-            display: block;
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 4px;
-            line-height: 1.45;
-        }
-
-        .health-indicator {
-            font-size: 13px;
-            font-weight: 600;
-            font-family: var(--font-mono);
-            margin-top: 16px;
-            padding: 12px;
-            border-radius: 8px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-        }
-
-        .btn-primary {
-            flex: 1;
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            padding: 14px;
-            font-family: var(--font-display);
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            letter-spacing: 0.3px;
-            transition: background 0.15s, transform 0.1s;
-            min-height: 44px;
-        }
-
-        .btn-primary:hover {
-            background: #6b59e6;
-            transform: translateY(-1px);
-        }
-
-        .btn-primary:active {
-            transform: translateY(0);
-        }
-
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-ghost {
-            flex: 1;
-            background: transparent;
-            color: var(--text-muted);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 11px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: border-color 0.15s, color 0.15s;
-            min-height: 44px;
-        }
-
-        .btn-ghost:hover {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-
-        /* ── EMI PREVIEW ── */
-        .emi-preview-card {
-            background: var(--bg);
-            border: 1px solid var(--border-bright);
-            border-radius: 12px;
-            padding: 18px;
-            margin-top: 16px;
-            margin-bottom: 4px;
-            transition: border-color 0.2s;
-        }
-
-        .emi-preview-title {
-            font-family: var(--font-display);
-            font-size: 10px;
-            font-weight: 700;
-            color: var(--accent);
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-bottom: 14px;
-        }
-
-        .emi-preview-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 14px;
-        }
-
-        .emi-preview-label {
-            font-size: 10px;
-            color: var(--text-muted);
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            margin-bottom: 3px;
-        }
-
-        .emi-preview-value {
-            font-family: var(--font-mono);
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .emi-comfort-bar {
-            height: 6px;
-            background: var(--border);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 6px;
-        }
-
-        .emi-comfort-fill {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.3s, background 0.3s;
-            width: 0%;
-        }
-
-        .emi-comfort-label {
-            font-size: 12px;
-            margin-bottom: 10px;
-            font-weight: 500;
-        }
-
-        .emi-preview-note {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-
-        /* ── FRICTION GATE MODAL ── */
-        .friction-gate-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(8, 8, 16, 0.92);
-            z-index: 1000;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-
-        .friction-gate-modal {
-            background: var(--surface);
-            border: 1px solid var(--border-bright);
-            border-radius: 16px;
-            padding: 32px;
-            max-width: 600px;
-            width: 100%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .friction-gate-title {
-            font-family: var(--font-display);
-            font-size: 20px;
-            font-weight: 800;
-            color: var(--text);
-            margin-bottom: 6px;
-        }
-
-        .friction-gate-subtitle {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 24px;
-            line-height: 1.55;
-        }
-
-        .friction-question {
-            margin-bottom: 20px;
-            padding: 16px;
-            background: var(--bg);
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            display: none;
-        }
-
-        .friction-question.active {
-            display: block;
-        }
-
-        .friction-question-text {
-            font-size: 14px;
-            color: var(--text);
-            font-weight: 500;
-            margin-bottom: 12px;
-            line-height: 1.5;
-        }
-
-        .friction-options {
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-        }
-
-        .friction-option {
-            padding: 10px 14px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 13px;
-            color: var(--text-dim);
-            cursor: pointer;
-            transition: border-color 0.15s, background 0.15s;
-            text-align: left;
-        }
-
-        .friction-option:hover {
-            border-color: var(--accent);
-        }
-
-        .friction-option.selected {
-            border-color: var(--accent);
-            background: rgba(124, 106, 247, 0.1);
-            color: var(--text);
-        }
-
-        .friction-warning {
-            font-size: 12px;
-            color: var(--yellow);
-            margin-top: 8px;
-            padding: 8px 12px;
-            background: var(--yellow-bg);
-            border-radius: 6px;
-            border: 1px solid var(--yellow-border);
-            display: none;
-        }
-
-        .friction-summary {
-            margin-top: 16px;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            display: none;
-        }
-
-        .friction-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 24px;
-            justify-content: flex-end;
-        }
-
-        /* ── LOADING & ERROR ── */
-        #loading {
-            display: none;
-        }
-
-        .load-wrap {
-            text-align: center;
-            padding: 56px 0;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 2px solid var(--border-bright);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin .7s linear infinite;
-            margin: 0 auto 24px;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .load-title {
-            font-family: var(--font-display);
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-
-        .load-sub {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-bottom: 32px;
-        }
-
-        .agents {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            max-width: 340px;
-            margin: 0 auto;
-        }
-
-        .arow {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 9px 13px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 12px;
-            transition: all .2s;
-        }
-
-        .arow.running {
-            border-color: var(--accent);
-            background: rgba(124, 106, 247, .07);
-        }
-
-        .arow.done {
-            border-color: var(--green-border);
-            background: var(--green-bg);
-        }
-
-        .adot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--border-bright);
-            flex-shrink: 0;
-        }
-
-        .arow.running .adot {
-            background: var(--accent);
-            animation: pulse 1s infinite;
-        }
-
-        .arow.done .adot {
-            background: var(--green);
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1
-            }
-
-            50% {
-                opacity: .3
-            }
-        }
-
-        .aname {
-            flex: 1;
-            color: var(--text-dim);
-        }
-
-        .arow.running .aname {
-            color: var(--text);
-        }
-
-        .arow.done .aname {
-            color: var(--green);
-        }
-
-        .astatus {
-            font-size: 10px;
-            color: var(--text-muted);
-            font-family: var(--font-mono);
-        }
-
-        .arow.running .astatus {
-            color: var(--accent);
-        }
-
-        .arow.done .astatus {
-            color: var(--green);
-        }
-
-        #err {
-            display: none;
-            background: var(--red-bg);
-            border: 1px solid var(--red-border);
-            border-radius: 8px;
-            padding: 12px 16px;
-            color: var(--red);
-            font-size: 13px;
-            margin-bottom: 14px;
-        }
-
-        /* ── REPORT ── */
-        #report {
-            display: none;
-        }
-
-        /* SHARE BAR */
-        .share-bar-container {
-            background: rgba(124, 106, 247, 0.08);
-            border: 1px solid var(--accent-dim);
-            border-radius: 10px;
-            padding: 12px 16px;
-            margin-bottom: 16px;
-        }
-
-        .share-bar-inner {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .share-bar-label {
-            font-size: 12px;
-            color: var(--accent);
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-
-        .share-url-input {
-            flex: 1;
-            background: var(--bg);
-            border: 1px solid var(--border-bright);
-            border-radius: 6px;
-            padding: 7px 10px;
-            color: var(--text-dim);
-            font-family: var(--font-mono);
-            font-size: 11px;
-            min-width: 0;
-            outline: none;
-        }
-
-        .share-btn-copy {
-            flex-shrink: 0;
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 8px 14px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-            white-space: nowrap;
-        }
-
-        .share-btn-copy:hover {
-            background: #6b59e6;
-        }
-
-        .share-btn-wa {
-            flex-shrink: 0;
-            background: #25D366;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 8px 14px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s;
-            white-space: nowrap;
-        }
-
-        .share-btn-wa:hover {
-            background: #20b858;
-        }
-
-        .verdict {
-            border-radius: 16px;
-            padding: 28px 32px;
-            margin-bottom: 24px;
-            display: flex;
-            align-items: flex-start;
-            gap: 24px;
-        }
-
-        .verdict.safe {
-            background: var(--green-bg);
-            border: 1px solid var(--green-border);
-        }
-
-        .verdict.risky {
-            background: var(--yellow-bg);
-            border: 1px solid var(--yellow-border);
-        }
-
-        .verdict.reconsider {
-            background: var(--red-bg);
-            border: 1px solid var(--red-border);
-        }
-
-        .v-icon {
-            font-size: 40px;
-            flex-shrink: 0;
-        }
-
-        .v-word {
-            font-family: var(--font-display);
-            font-size: 32px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            line-height: 1;
-        }
-
-        .verdict.safe .v-word {
-            color: var(--green);
-        }
-
-        .verdict.risky .v-word {
-            color: var(--yellow);
-        }
-
-        .verdict.reconsider .v-word {
-            color: var(--red);
-        }
-
-        .v-reason {
-            font-size: 14px;
-            color: var(--text-dim);
-            margin-top: 8px;
-            line-height: 1.6;
-            max-width: 600px;
-        }
-
-        .v-conf {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 8px;
-            font-family: var(--font-mono);
-        }
-
-        /* CASH FLOW HERO */
-        .cashflow-hero {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 16px;
-        }
-
-        .cf-title {
-            font-family: var(--font-display);
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--accent);
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-bottom: 20px;
-        }
-
-        .cf-main {
-            display: flex;
-            align-items: center;
-            gap: 32px;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-        }
-
-        .cf-surplus-box {
-            flex-shrink: 0;
-        }
-
-        .cf-surplus-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-
-        .cf-surplus-value {
-            font-family: var(--font-display);
-            font-size: 44px;
-            font-weight: 800;
-            line-height: 1;
-        }
-
-        .cf-surplus-value.good {
-            color: var(--green);
-        }
-
-        .cf-surplus-value.warn {
-            color: var(--yellow);
-        }
-
-        .cf-surplus-value.crit {
-            color: var(--red);
-        }
-
-        .cf-surplus-sub {
-            font-size: 12px;
-            margin-top: 6px;
-        }
-
-        .cf-surplus-sub.good {
-            color: var(--green);
-        }
-
-        .cf-surplus-sub.warn {
-            color: var(--yellow);
-        }
-
-        .cf-surplus-sub.crit {
-            color: var(--red);
-        }
-
-        .cf-waterfall {
-            flex: 1;
-            min-width: 240px;
-        }
-
-        .cf-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-
-        .cf-row-label {
-            font-size: 12px;
-            color: var(--text-muted);
-            width: 160px;
-            flex-shrink: 0;
-        }
-
-        .cf-row-amount {
-            font-family: var(--font-mono);
-            font-size: 13px;
-            font-weight: 500;
-            width: 90px;
-            text-align: right;
-            flex-shrink: 0;
-        }
-
-        .cf-row-amount.income {
-            color: var(--green);
-        }
-
-        .cf-row-amount.out {
-            color: var(--red);
-        }
-
-        .cf-row-amount.surplus {
-            font-weight: 700;
-        }
-
-        .cf-bar-wrap {
-            flex: 1;
-            height: 6px;
-            background: var(--border);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .cf-bar {
-            height: 100%;
-            border-radius: 3px;
-        }
-
-        .cf-bar.income {
-            background: var(--green);
-        }
-
-        .cf-bar.out {
-            background: var(--red);
-        }
-
-        .cf-bar.surplus.good {
-            background: var(--green);
-        }
-
-        .cf-bar.surplus.warn {
-            background: var(--yellow);
-        }
-
-        .cf-bar.surplus.crit {
-            background: var(--red);
-        }
-
-        .cf-divider {
-            height: 1px;
-            background: var(--border);
-            margin: 4px 0 12px 0;
-        }
-
-        .cf-context {
-            font-size: 13px;
-            color: var(--text-dim);
-            line-height: 1.55;
-            background: var(--bg);
-            border-radius: 8px;
-            padding: 12px 14px;
-            border: 1px solid var(--border);
-        }
-
-        .cf-context strong {
-            color: var(--text);
-        }
-
-        /* WHAT IF SLIDERS */
-        .whatif-section {
-            margin-bottom: 14px;
-            display: none;
-        }
-
-        .whatif-note {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-bottom: 20px;
-            line-height: 1.5;
-        }
-
-        .whatif-sliders {
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
-            margin-bottom: 20px;
-        }
-
-        .slider-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-
-        .slider-label {
-            font-size: 12px;
-            color: var(--text-dim);
-            font-weight: 500;
-        }
-
-        .slider-value {
-            font-family: var(--font-mono);
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--accent);
-        }
-
-        .wi-slider {
-            width: 100%;
-            height: 4px;
-            -webkit-appearance: none;
-            appearance: none;
-            background: var(--border-bright);
-            border-radius: 2px;
-            outline: none;
-        }
-
-        .wi-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: var(--accent);
-            cursor: pointer;
-        }
-
-        .whatif-metrics {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-bottom: 4px;
-        }
-
-        .wm-item {
-            background: var(--bg);
-            border-radius: 8px;
-            padding: 12px;
-            border: 1px solid var(--border);
-        }
-
-        .wm-label {
-            font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-        }
-
-        .wm-val {
-            font-family: var(--font-mono);
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .wm-delta {
-            font-size: 11px;
-            margin-top: 2px;
-            font-family: var(--font-mono);
-        }
-
-        .wm-delta.better {
-            color: var(--green);
-        }
-
-        .wm-delta.worse {
-            color: var(--red);
-        }
-
-        .wm-delta.neutral {
-            color: var(--text-muted);
-        }
-
-        /* SCORECARD */
-        .scorecard {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 16px;
-        }
-
-        @media(max-width:640px) {
-            .scorecard {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .sc-item {
-            background: var(--surface);
-            border-radius: 12px;
-            padding: 16px;
-            border: 1px solid var(--border);
-            position: relative;
-            overflow: hidden;
-            transition: border-color 0.2s;
-        }
-
-        .sc-item:hover {
-            border-color: var(--border-bright);
-        }
-
-        .sc-item::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-        }
-
-        .sc-item.pass::after {
-            background: var(--green);
-        }
-
-        .sc-item.warn::after {
-            background: var(--yellow);
-        }
-
-        .sc-item.fail::after {
-            background: var(--red);
-        }
-
-        .sc-item.neutral::after {
-            background: var(--border);
-        }
-
-        .sc-label {
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--text-muted);
-            letter-spacing: 0.8px;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-
-        .sc-val {
-            font-family: var(--font-display);
-            font-size: 22px;
-            font-weight: 800;
-            line-height: 1;
-            margin-bottom: 5px;
-        }
-
-        .sc-item.pass .sc-val {
-            color: var(--green);
-        }
-
-        .sc-item.warn .sc-val {
-            color: var(--yellow);
-        }
-
-        .sc-item.fail .sc-val {
-            color: var(--red);
-        }
-
-        .sc-item.neutral .sc-val {
-            color: var(--text-muted);
-        }
-
-        .sc-status-badge {
-            display: inline-block;
-            font-size: 9px;
-            font-weight: 800;
-            padding: 2px 7px;
-            border-radius: 3px;
-            letter-spacing: 0.8px;
-            margin: 3px 0 5px;
-            text-transform: uppercase;
-        }
-
-        .sc-status-badge.pass {
-            background: var(--green-bg);
-            color: var(--green);
-            border: 1px solid var(--green-border);
-        }
-
-        .sc-status-badge.warn {
-            background: var(--yellow-bg);
-            color: var(--yellow);
-            border: 1px solid var(--yellow-border);
-        }
-
-        .sc-status-badge.fail {
-            background: var(--red-bg);
-            color: var(--red);
-            border: 1px solid var(--red-border);
-        }
-
-        .sc-status-badge.neutral {
-            background: var(--border);
-            color: var(--text-muted);
-            border: 1px solid var(--border-bright);
-        }
-
-        .sc-verdict {
-            font-size: 11px;
-            font-weight: 600;
-            margin-bottom: 3px;
-        }
-
-        .sc-item.pass .sc-verdict {
-            color: #16a34a;
-        }
-
-        .sc-item.warn .sc-verdict {
-            color: #b45309;
-        }
-
-        .sc-item.fail .sc-verdict {
-            color: #b91c1c;
-        }
-
-        .sc-item.neutral .sc-verdict {
-            color: var(--text-muted);
-        }
-
-        .sc-ctx {
-            font-size: 11px;
-            color: var(--text-muted);
-            line-height: 1.4;
-        }
-
-        /* TWO COLUMN */
-        .row2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-            margin-bottom: 14px;
-        }
-
-        @media(max-width:720px) {
-            .row2 {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .rcard {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 20px;
-        }
-
-        .rcard-title {
-            font-family: var(--font-display);
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--accent);
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-bottom: 16px;
-        }
-
-        /* DATA TABLE */
-        .dtable {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .dtable td {
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border);
-            font-size: 13px;
-        }
-
-        .dtable td:first-child {
-            color: var(--text-dim);
-        }
-
-        .dtable td:last-child {
-            text-align: right;
-            font-family: var(--font-mono);
-            font-weight: 500;
-        }
-
-        .dtable tr:last-child td {
-            border-bottom: none;
-        }
-
-        /* STRESS */
-        .stress-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-
-        .sc2 {
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 13px;
-            border: 1px solid var(--border);
-        }
-
-        .sc2.pass {
-            border-color: var(--green-border);
-        }
-
-        .sc2.fail {
-            border-color: var(--red-border);
-        }
-
-        .sc2-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-
-        .sc2-name {
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: capitalize;
-            color: var(--text);
-        }
-
-        .badge {
-            font-size: 9px;
-            font-weight: 700;
-            padding: 3px 7px;
-            border-radius: 4px;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-        }
-
-        .badge.pass {
-            background: #052010;
-            color: var(--green);
-            border: 1px solid var(--green-border);
-        }
-
-        .badge.fail {
-            background: var(--red-bg);
-            color: var(--red);
-            border: 1px solid var(--red-border);
-        }
-
-        .sc2-key {
-            font-size: 12px;
-            color: var(--text-dim);
-            margin-bottom: 7px;
-            line-height: 1.4;
-        }
-
-        .sc2-tip {
-            font-size: 12px;
-            color: var(--text-muted);
-            border-top: 1px solid var(--border);
-            padding-top: 7px;
-            line-height: 1.4;
-        }
-
-        /* CHALLENGES & FLAGS */
-        .challenge {
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 14px;
-            margin-bottom: 9px;
-        }
-
-        .challenge.critical {
-            border-left: 3px solid var(--red);
-        }
-
-        .challenge.high {
-            border-left: 3px solid var(--yellow);
-        }
-
-        .challenge.medium {
-            border-left: 3px solid var(--accent);
-        }
-
-        .challenge.low {
-            border-left: 3px solid var(--border);
-        }
-
-        .ch-top {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 7px;
-            flex-wrap: wrap;
-        }
-
-        .sev {
-            font-size: 9px;
-            font-weight: 700;
-            padding: 2px 7px;
-            border-radius: 3px;
-            text-transform: uppercase;
-            letter-spacing: .5px;
-        }
-
-        .sev.critical {
-            background: var(--red-bg);
-            color: var(--red);
-        }
-
-        .sev.high {
-            background: #1a0f00;
-            color: var(--yellow);
-        }
-
-        .sev.medium {
-            background: rgba(124, 106, 247, .15);
-            color: var(--accent);
-        }
-
-        .sev.low {
-            background: var(--border);
-            color: var(--text-muted);
-        }
-
-        .ch-assume {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .ch-body {
-            font-size: 13px;
-            color: var(--text-dim);
-            margin-bottom: 5px;
-            line-height: 1.55;
-        }
-
-        .ch-impact {
-            font-size: 12px;
-            color: var(--text-muted);
-            font-family: var(--font-mono);
-        }
-
-        .flag {
-            font-size: 12px;
-            padding: 8px 12px;
-            background: var(--bg);
-            border-radius: 7px;
-            margin-top: 8px;
-            line-height: 1.5;
-        }
-
-        .flag.high {
-            border-left: 2px solid var(--red);
-        }
-
-        .flag.medium {
-            border-left: 2px solid var(--yellow);
-        }
-
-        .flag.low {
-            border-left: 2px solid var(--border);
-        }
-
-        .flag-name {
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .flag-sev-text {
-            font-size: 9px;
-            font-weight: 700;
-            margin-right: 6px;
-            letter-spacing: 0.5px;
-        }
-
-        .flag.high .flag-sev-text {
-            color: var(--red);
-        }
-
-        .flag.medium .flag-sev-text {
-            color: var(--yellow);
-        }
-
-        .flag.low .flag-sev-text {
-            color: var(--text-muted);
-        }
-
-        /* LISTS & PILLS & REASONING */
-        .reason-list,
-        .action-list {
-            list-style: none;
-        }
-
-        .reason-list li {
-            font-size: 13.5px;
-            color: var(--text-dim);
-            padding: 8px 12px;
-            background: var(--bg);
-            border-radius: 7px;
-            margin-bottom: 6px;
-            border-left: 2px solid var(--accent-dim);
-            line-height: 1.5;
-        }
-
-        .action-list li {
-            font-size: 13.5px;
-            color: var(--text-dim);
-            padding: 9px 12px;
-            background: var(--bg);
-            border-radius: 7px;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: flex-start;
-            gap: 9px;
-            line-height: 1.5;
-        }
-
-        .action-list li::before {
-            content: '→';
-            color: var(--accent);
-            font-weight: 700;
-            flex-shrink: 0;
-            font-family: var(--font-display);
-        }
-
-        .reasoning {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 18px;
-            font-size: 13.5px;
-            color: var(--text-dim);
-            line-height: 1.8;
-            white-space: pre-wrap;
-            font-family: var(--font-body);
-        }
-
-        .pills {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 7px;
-        }
-
-        .pill {
-            font-size: 11px;
-            padding: 5px 11px;
-            border-radius: 20px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text-muted);
-            line-height: 1.4;
-        }
-
-        /* RENT VS BUY VISUAL */
-        .rvb-compare {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 14px;
-        }
-
-        .rvb-box {
-            flex: 1;
-            background: var(--bg);
-            border-radius: 10px;
-            padding: 14px;
-            text-align: center;
-            border: 1px solid var(--border);
-        }
-
-        .rvb-box-label {
-            font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: .8px;
-            margin-bottom: 6px;
-        }
-
-        .rvb-box-val {
-            font-family: var(--font-display);
-            font-size: 20px;
-            font-weight: 800;
-        }
-
-        .rvb-box.rent .rvb-box-val {
-            color: var(--green);
-        }
-
-        .rvb-box.buy .rvb-box-val {
-            color: var(--text);
-        }
-
-        .rvb-box-sub {
-            font-size: 10px;
-            color: var(--text-muted);
-            margin-top: 3px;
-        }
-
-        .rvb-diff {
-            font-size: 13px;
-            color: var(--text-muted);
-            background: var(--bg);
-            border-radius: 8px;
-            padding: 10px 14px;
-            border: 1px solid var(--border);
-            line-height: 1.55;
-        }
-
-        /* ACTIONS & META */
-        .report-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 24px;
-            flex-wrap: wrap;
-        }
-
-        .meta {
-            font-size: 11px;
-            color: var(--text-muted);
-            text-align: center;
-            padding: 16px 0 4px;
-            font-family: var(--font-mono);
-        }
-
-        /* PRINT STYLES */
-        .print-header,
-        .print-disclaimer {
-            display: none;
-        }
-
-        @media print {
-
-            .hdr,
-            #form-section,
-            #loading,
-            #err,
-            #compare-bar,
-            #compare-form,
-            .share-bar-container,
-            #r-whatif,
-            .whatif-section,
-            .report-actions,
-            .btn-primary,
-            .btn-ghost,
-            .btn-whatsapp,
-            .share-btn-copy,
-            .share-btn-wa,
-            .friction-gate-overlay,
-            .lang-selector,
-            .wizard-progress,
-            .sensitivity-section {
-                display: none !important;
-            }
-
-            #report {
-                display: block !important;
-            }
-
-            body {
-                background: white !important;
-                color: #1a1a2e !important;
-                font-size: 11pt;
-                font-family: 'DM Sans', Arial, sans-serif;
-            }
-
-            .verdict {
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-                border: 2px solid #ccc !important;
-            }
-
-            .verdict.safe {
-                background: #d4edda !important;
-            }
-
-            .verdict.risky {
-                background: #fff3cd !important;
-            }
-
-            .verdict.reconsider {
-                background: #f8d7da !important;
-            }
-
-            .cashflow-hero,
-            .scorecard,
-            .rcard,
-            .sc-item {
-                background: white !important;
-                border: 1px solid #ddd !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-
-            .scenario-grid {
-                grid-template-columns: 1fr 1fr !important;
-            }
-
-            .row2 {
-                grid-template-columns: 1fr 1fr !important;
-            }
-
-            .rcard {
-                page-break-inside: avoid;
-                margin-bottom: 12pt !important;
-            }
-
-            .print-header,
-            .print-disclaimer {
-                display: block !important;
-            }
-
-            .v-word,
-            .sc-val {
-                color: #1a1a2e !important;
-            }
-
-            .verdict.safe .v-word {
-                color: #155724 !important;
-            }
-
-            .verdict.risky .v-word {
-                color: #856404 !important;
-            }
-
-            .verdict.reconsider .v-word {
-                color: #721c24 !important;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-    <div class="hdr">
-        <div>
-            <div class="logo">NIV<em> AI</em></div>
-            <div class="hdr-sub">Home Buying Decision Engine · Mumbai</div>
+    <header class="hdr container">
+        <div class="hdr-left">
+            <a href="/landing.html" class="logo">NIV <em>AI</em></a>
+            <div class="hdr-sub">HOME BUYING DECISION ENGINE · MUMBAI</div>
         </div>
-        <div class="hdr-tag">6-Agent System</div>
+        <div class="hdr-right">
+            <span class="hdr-tag">6-AGENT SYSTEM</span>
+        </div>
+    </header>
+
+    <div class="container" id="form-section">
+        <div id="err" role="alert"
+            style="display:none; color:var(--red); padding:16px; border-left:3px solid var(--red); background:var(--surface-2); margin-bottom:24px;">
+        </div>
+
+        <div class="lang-toggle">
+            <span class="lang-label">OUTPUT LANGUAGE</span>
+            <div class="lang-options">
+                <button class="lang-btn active" onclick="setLang('english',this)">EN</button>
+                <button class="lang-btn" onclick="setLang('hindi',this)">हि</button>
+                <button class="lang-btn" onclick="setLang('marathi',this)">म</button>
+            </div>
+        </div>
+
+        <div class="wizard-bar">
+            <div class="wizard-steps">
+                <div class="w-step active" data-step-nav="1">
+                    <span class="w-num">01</span>
+                    <span class="w-label">FINANCES</span>
+                </div>
+                <div class="w-connector">
+                    <div class="w-fill" id="w-fill-1"></div>
+                </div>
+                <div class="w-step" data-step-nav="2">
+                    <span class="w-num">02</span>
+                    <span class="w-label">PROPERTY</span>
+                </div>
+                <div class="w-connector">
+                    <div class="w-fill" id="w-fill-2"></div>
+                </div>
+                <div class="w-step" data-step-nav="3">
+                    <span class="w-num">03</span>
+                    <span class="w-label">DETAILS</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="step-card active" data-step="1">
+            <div class="step-heading">
+                <div class="section-label"><span>01 ·</span> YOUR FINANCIAL PICTURE</div>
+            </div>
+
+            <div class="field-grid">
+                <div class="field">
+                    <label class="field-label" for="monthly_income">MONTHLY INCOME (₹)</label>
+                    <input type="number" id="monthly_income" value="120000" placeholder="120000"
+                        oninput="updateFinancialHealth(); preview(this,'inc-p')">
+                    <div class="field-hint">Your in-hand monthly salary</div>
+                    <div id="inc-p" class="field-hint" style="color:var(--text-dim)"></div>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="spouse_income">SP/CO-BORROWER INCOME (₹)</label>
+                    <input type="number" id="spouse_income" value="0" placeholder="0"
+                        oninput="updateFinancialHealth(); preview(this,'sp-p')">
+                    <div id="sp-p" class="field-hint" style="color:var(--text-dim)"></div>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="liquid_savings">LIQUID SAVINGS (₹)</label>
+                    <input type="number" id="liquid_savings" value="2000000" oninput="preview(this,'sav-p')">
+                    <div class="field-hint">Include: savings accounts, FDs, stocks.</div>
+                    <div id="sav-p" class="field-hint" style="color:var(--text-dim)"></div>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="existing_emis">EXISTING LOAN EMIS (₹)</label>
+                    <input type="number" id="existing_emis" value="5000" oninput="updateFinancialHealth()">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="monthly_expenses">MONTHLY EXPENSES (₹)</label>
+                    <input type="number" id="monthly_expenses" value="45000" oninput="updateFinancialHealth()">
+                </div>
+            </div>
+
+            <div class="health-bar" id="financial-health-indicator">
+                <div class="health-label">MONTHLY SAVINGS CAPACITY</div>
+                <div class="health-value" id="financial-health">₹—</div>
+                <div class="health-track">
+                    <div class="health-fill" id="health-fill-bar"></div>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end;">
+                <button class="btn-primary" onclick="goStep(2)">Next: Property Details &rarr;</button>
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step-card" data-step="2">
+            <div class="step-heading">
+                <div class="section-label"><span>02 ·</span> THE PROPERTY</div>
+            </div>
+
+            <div class="field-grid">
+                <div class="field">
+                    <label class="field-label" for="property_price">PROPERTY PRICE (₹)</label>
+                    <input type="number" id="property_price" value="8500000"
+                        oninput="updateEMIPreview(); preview(this,'pp-p')">
+                    <div id="pp-p" class="field-hint" style="color:var(--text-dim)"></div>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="location_area">LOCATION / AREA</label>
+                    <input type="text" id="location_area" value="Andheri West" placeholder="Andheri West">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="down_payment_available">DOWN PAYMENT AVAILABLE (₹)</label>
+                    <input type="number" id="down_payment_available" value="1700000"
+                        oninput="updateEMIPreview(); preview(this,'dp-p')">
+                    <div id="dp-p" class="field-hint" style="color:var(--text-dim)"></div>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="loan_tenure_years">LOAN TENURE (YEARS)</label>
+                    <input type="number" id="loan_tenure_years" value="20" min="1" max="30"
+                        oninput="updateEMIPreview()">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="expected_interest_rate">EXPECTED INTEREST RATE (%)</label>
+                    <input type="number" id="expected_interest_rate" value="8.5" step="0.1"
+                        oninput="updateEMIPreview()">
+                </div>
+            </div>
+
+            <div class="emi-preview" id="emi-preview-card">
+                <div class="section-label"><span>ESTIMATED MONTHLY IMPACT</span></div>
+                <div class="metric-grid" style="grid-template-columns: repeat(2,1fr) repeat(2,1fr)">
+                    <div class="metric-cell">
+                        <div class="metric-label">LOAN AMOUNT</div>
+                        <div class="metric-number" id="ep-loan">₹—</div>
+                    </div>
+                    <div class="metric-cell">
+                        <div class="metric-label">ESTIMATED EMI</div>
+                        <div class="metric-number" id="ep-emi">₹—</div>
+                    </div>
+                    <div class="metric-cell">
+                        <div class="metric-label">EMI / INCOME</div>
+                        <div class="metric-number" id="ep-ratio">—%</div>
+                    </div>
+                    <div class="metric-cell">
+                        <div class="metric-label">MONTHLY SURPLUS</div>
+                        <div class="metric-number" id="ep-surplus">₹—</div>
+                    </div>
+                </div>
+                <div class="emi-zone-label" id="ep-zone"></div>
+                <div id="market-rates-banner"
+                    style="display:none; margin-top:16px; font-family:var(--font-mono); font-size:11px; color:var(--text-muted); border-top:1px solid var(--border); padding-top:16px;">
+                    <span id="market-rates-text">Loading current rates...</span>
+                    <a href="#" onclick="refreshMarketRates(); return false"
+                        style="color:var(--accent); margin-left:16px;">Refresh</a>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; margin-top:32px;">
+                <button class="btn-ghost" onclick="goStep(1)">&larr; Back</button>
+                <button class="btn-primary" onclick="goStep(3)">Next: Final Details &rarr;</button>
+            </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step-card" data-step="3">
+            <div class="step-heading">
+                <div class="section-label"><span>03 ·</span> ADDITIONAL DETAILS</div>
+            </div>
+
+            <div class="field-grid">
+                <div class="field">
+                    <label class="field-label" for="employment_type">EMPLOYMENT TYPE</label>
+                    <select id="employment_type">
+                        <option value="salaried">Salaried</option>
+                        <option value="freelance">Freelance / Consulting</option>
+                        <option value="business">Business Owner</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="years_in_current_job">YEARS IN CURRENT JOB</label>
+                    <input type="number" id="years_in_current_job" value="3" step="0.5">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="current_rent">CURRENT MONTHLY RENT (₹)</label>
+                    <input type="number" id="current_rent" value="25000">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="configuration">CONFIGURATION</label>
+                    <select id="configuration">
+                        <option value="1BHK">1 BHK</option>
+                        <option value="2BHK" selected>2 BHK</option>
+                        <option value="3BHK">3 BHK</option>
+                        <option value="4BHK">4 BHK</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="carpet_area_sqft">CARPET AREA (SQFT)</label>
+                    <input type="number" id="carpet_area_sqft" value="650">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="is_ready_to_move">READY TO MOVE IN?</label>
+                    <select id="is_ready_to_move">
+                        <option value="true">Yes</option>
+                        <option value="false" selected>No</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="is_rera_registered">RERA REGISTERED?</label>
+                    <select id="is_rera_registered">
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                        <option value="null">Don't Know</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="builder_name">BUILDER NAME</label>
+                    <input type="text" id="builder_name" value="Oberoi Realty">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="possession_date">POSSESSION DATE</label>
+                    <input type="text" id="possession_date" placeholder="12/2026">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="commute_distance_km">COMMUTE DISTANCE (KM)</label>
+                    <input type="number" id="commute_distance_km" value="0">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="buyer_gender">BUYER GENDER</label>
+                    <select id="buyer_gender">
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label class="field-label" for="financial_notes">FINANCIAL NOTES</label>
+                    <input type="text" id="financial_notes" placeholder="Optional">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="property_notes">PROPERTY NOTES</label>
+                    <input type="text" id="property_notes" placeholder="Optional">
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; margin-top:32px;">
+                <button class="btn-ghost" onclick="goStep(2)">&larr; Back</button>
+                <button class="btn-primary" onclick="onSubmitClick()">Run Full Analysis &rarr;</button>
+            </div>
+        </div>
+
+        <div style="text-align:center; padding: 24px 0;">
+            <a href="#" onclick="showAllSteps(event)"
+                style="font-family:var(--font-mono); font-size:11px; text-transform:uppercase; color:var(--text-faint); text-decoration:none;">Show
+                all fields at once</a>
+        </div>
     </div>
 
-    <div class="wrap">
-
-        <div id="form-section">
-            <div id="err" role="alert"></div>
-
-            <div class="lang-selector">
-                <span class="lang-label">Report Language</span>
-                <div class="lang-options">
-                    <button class="lang-opt active" data-lang="english"
-                        onclick="setLang('english', this)">English</button>
-                    <button class="lang-opt" data-lang="hindi" onclick="setLang('hindi', this)">हिंदी</button>
-                    <button class="lang-opt" data-lang="marathi" onclick="setLang('marathi', this)">मराठी</button>
-                </div>
-                <span class="lang-note">Reasoning text only — numbers remain in English</span>
+    <!-- Loading View -->
+    <div id="loading-view" class="view" style="display:none">
+        <div class="loading-screen">
+            <div class="loading-top">
+                <div class="section-label"><span>ANALYSING</span> YOUR SITUATION</div>
+                <div class="loading-title">6 agents working in parallel</div>
             </div>
-
-            <div class="wizard-progress">
-                <div class="wizard-step active" id="ws1">
-                    <div class="wizard-step-num">1</div>
-                    <div class="wizard-step-label">Finances</div>
+            <div class="agent-list">
+                <div class="agent-row">
+                    <div class="agent-dot" id="a1-dot"></div>
+                    <div class="agent-label">Context Synthesizer</div>
+                    <div class="agent-status-text" id="a1">waiting</div>
                 </div>
-                <div class="wizard-connector"></div>
-                <div class="wizard-step" id="ws2">
-                    <div class="wizard-step-num">2</div>
-                    <div class="wizard-step-label">Property</div>
+                <div class="agent-row">
+                    <div class="agent-dot" id="a2-dot"></div>
+                    <div class="agent-label">Financial Analyst</div>
+                    <div class="agent-status-text" id="a2">waiting</div>
                 </div>
-                <div class="wizard-connector"></div>
-                <div class="wizard-step" id="ws3">
-                    <div class="wizard-step-num">3</div>
-                    <div class="wizard-step-label">Details</div>
+                <div class="agent-row">
+                    <div class="agent-dot" id="a3-dot"></div>
+                    <div class="agent-label">Risk Simulator</div>
+                    <div class="agent-status-text" id="a3">waiting</div>
                 </div>
-            </div>
-
-            <div class="fcard">
-                <div data-step="1" class="active">
-                    <div class="fcard-title">💰 Your Financial Picture</div>
-                    <div class="g2">
-                        <div class="field">
-                            <label for="monthly_income">Your Monthly Income (₹)</label>
-                            <input id="monthly_income" type="number" value="120000" placeholder="120000"
-                                oninput="updateFinancialHealth(); preview(this,'inc-p')">
-                            <div id="inc-p" class="field-preview"></div>
-                        </div>
-                        <div class="field">
-                            <label for="spouse_income">Spouse / Co-borrower Income (₹)</label>
-                            <input id="spouse_income" type="number" value="0" placeholder="0"
-                                oninput="updateFinancialHealth(); preview(this,'sp-p')">
-                            <div id="sp-p" class="field-preview"></div>
-                        </div>
-                        <div class="field">
-                            <label for="liquid_savings">Liquid Savings / FDs / Stocks (₹)</label>
-                            <input id="liquid_savings" type="number" value="2000000" oninput="preview(this,'sav-p')">
-                            <small class="field-helper">Include: savings accounts, FDs, liquid mutual funds, stocks.
-                                Exclude: EPF, PPF, property, long-term locked investments.</small>
-                            <div id="sav-p" class="field-preview"></div>
-                        </div>
-                        <div class="field">
-                            <label for="existing_emis">Existing Loan EMIs (₹/month)</label>
-                            <input id="existing_emis" type="number" value="5000" oninput="updateFinancialHealth()">
-                        </div>
-                        <div class="field">
-                            <label for="monthly_expenses">Monthly Living Expenses (₹)</label>
-                            <input id="monthly_expenses" type="number" value="45000" oninput="updateFinancialHealth()">
-                        </div>
-                    </div>
-                    <div class="health-indicator" id="financial-health"></div>
-                    <div class="wizard-nav">
-                        <button class="btn-primary" onclick="goStep(2)">Next: Property Details →</button>
-                    </div>
+                <div class="agent-row">
+                    <div class="agent-dot" id="a4-dot"></div>
+                    <div class="agent-label">Property Analyst</div>
+                    <div class="agent-status-text" id="a4">waiting</div>
                 </div>
-
-                <div data-step="2">
-                    <div class="fcard-title">🏠 The Property</div>
-                    <div class="g2">
-                        <div class="field">
-                            <label for="property_price">Property Price (₹)</label>
-                            <input id="property_price" type="number" value="8500000"
-                                oninput="updateEMIPreview(); preview(this,'pp-p')">
-                            <div id="pp-p" class="field-preview"></div>
-                        </div>
-                        <div class="field">
-                            <label for="location_area">Location / Area</label>
-                            <input id="location_area" type="text" value="Andheri West" placeholder="Andheri West">
-                        </div>
-                        <div class="field">
-                            <label for="down_payment_available">Down Payment You Can Pay (₹)</label>
-                            <input id="down_payment_available" type="number" value="1700000"
-                                oninput="updateEMIPreview(); preview(this,'dp-p')">
-                            <small class="field-helper">RBI mandates minimum 20% of property price. A larger down
-                                payment means lower EMI, lower interest paid, and better financial safety
-                                margin.</small>
-                            <div id="dp-p" class="field-preview"></div>
-                        </div>
-                        <div class="field">
-                            <label for="loan_tenure_years">Preferred Loan Tenure (years)</label>
-                            <input id="loan_tenure_years" type="number" value="20" min="1" max="30"
-                                oninput="updateEMIPreview()">
-                        </div>
-                        <div class="field">
-                            <label for="expected_interest_rate">Expected Interest Rate (%)</label>
-                            <input id="expected_interest_rate" type="number" value="8.5" step="0.1"
-                                oninput="updateEMIPreview()">
-                            <small class="field-helper">Current SBI home loan rates: 8.5–9.15% (April 2026). Check your
-                                specific bank's current rate.</small>
-                        </div>
-                    </div>
-
-                    <div class="emi-preview-card" id="emi-preview">
-                        <div class="emi-preview-title">ESTIMATED MONTHLY IMPACT</div>
-                        <div class="emi-preview-grid">
-                            <div class="emi-preview-item">
-                                <div class="emi-preview-label">Loan Amount</div>
-                                <div class="emi-preview-value" id="prev-loan">—</div>
-                            </div>
-                            <div class="emi-preview-item">
-                                <div class="emi-preview-label">Estimated EMI</div>
-                                <div class="emi-preview-value" id="prev-emi">—</div>
-                            </div>
-                            <div class="emi-preview-item">
-                                <div class="emi-preview-label">Monthly Surplus</div>
-                                <div class="emi-preview-value" id="prev-surplus">—</div>
-                            </div>
-                            <div class="emi-preview-item">
-                                <div class="emi-preview-label">EMI / Income</div>
-                                <div class="emi-preview-value" id="prev-ratio">—</div>
-                            </div>
-                        </div>
-                        <div class="emi-comfort-bar">
-                            <div class="emi-comfort-fill" id="emi-comfort-fill"></div>
-                        </div>
-                        <div class="emi-comfort-label" id="emi-comfort-label"></div>
-                        <div class="emi-preview-note">Estimate only — full analysis includes taxes, maintenance,
-                            insurance and stress tests.</div>
-                    </div>
-
-                    <div class="wizard-nav">
-                        <button class="btn-ghost" onclick="goStep(1)">← Back</button>
-                        <button class="btn-primary" onclick="goStep(3)">Next: Final Details →</button>
-                    </div>
+                <div class="agent-row">
+                    <div class="agent-dot" id="a5-dot"></div>
+                    <div class="agent-label">Assumption Challenger</div>
+                    <div class="agent-status-text" id="a5">waiting</div>
                 </div>
-
-                <div data-step="3">
-                    <div class="fcard-title">📝 Additional Details</div>
-                    <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">These details improve accuracy
-                        — fill what you know, skip the rest.</p>
-                    <div class="g2">
-                        <div class="field">
-                            <label for="employment_type">Employment Type</label>
-                            <select id="employment_type">
-                                <option value="salaried">Salaried</option>
-                                <option value="freelance">Freelance / Consulting</option>
-                                <option value="business">Business Owner</option>
-                            </select>
-                        </div>
-                        <div class="field"><label for="years_in_current_job">Years in Current Job</label><input
-                                id="years_in_current_job" type="number" value="3" step="0.5"></div>
-                        <div class="field"><label for="expected_annual_growth_pct">Expected Annual Income Growth
-                                (%)</label><input id="expected_annual_growth_pct" type="number" value="8" step="0.5">
-                        </div>
-                        <div class="field"><label for="current_rent">Current Monthly Rent (₹)</label><input
-                                id="current_rent" type="number" value="25000"></div>
-                        <div class="field"><label for="dependents">Number of Dependents</label><input id="dependents"
-                                type="number" value="1" min="0"></div>
-                        <div class="field"><label for="configuration">Configuration</label>
-                            <select id="configuration">
-                                <option value="1BHK">1 BHK</option>
-                                <option value="2BHK" selected>2 BHK</option>
-                                <option value="3BHK">3 BHK</option>
-                                <option value="4BHK">4 BHK</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="carpet_area_sqft">Carpet Area (sqft)</label>
-                            <input id="carpet_area_sqft" type="number" value="650">
-                            <small class="field-helper">RERA carpet area — actual usable floor space. NOT the super
-                                built-up area shown in advertisements (which is 25-40% larger).</small>
-                        </div>
-                        <div class="field"><label for="is_ready_to_move">Ready to Move In?</label>
-                            <select id="is_ready_to_move">
-                                <option value="true">Yes — Ready Possession</option>
-                                <option value="false">No — Under Construction</option>
-                            </select>
-                        </div>
-                        <div class="field"><label for="is_rera_registered">RERA Registered?</label>
-                            <select id="is_rera_registered">
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
-                                <option value="null">Don't Know</option>
-                            </select>
-                        </div>
-                        <div class="field"><label for="builder_name">Builder / Developer Name</label><input
-                                id="builder_name" type="text" value="Oberoi Realty"></div>
-                        <div class="field"><label for="possession_date">Possession Date (MM/YYYY)</label><input
-                                id="possession_date" type="text" placeholder="e.g. 12/2026"></div>
-                        <div class="field">
-                            <label for="commute_distance_km">Commute Distance to Office (km)</label>
-                            <input id="commute_distance_km" type="number" placeholder="Optional" value="0" min="0">
-                            <small class="field-helper">Optional. One-way distance from this property to your office in
-                                km. Used to estimate annual transport cost impact.</small>
-                        </div>
-                        <div class="field"><label for="buyer_gender">Buyer Gender</label>
-                            <select id="buyer_gender">
-                                <option value="male">Male — 6% stamp duty</option>
-                                <option value="female">Female — 5% stamp duty</option>
-                            </select>
-                        </div>
-                        <div class="field"><label for="is_first_property">Is this your first property?</label>
-                            <select id="is_first_property">
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
-                            </select>
-                        </div>
-                        <div class="field"><label for="financial_notes">Financial Notes</label><input
-                                id="financial_notes" type="text" placeholder="e.g. Expecting 5L bonus in December">
-                        </div>
-                        <div class="field"><label for="property_notes">Property Notes</label><input id="property_notes"
-                                type="text" placeholder="e.g. Ground floor unit"></div>
-                    </div>
-                    <div class="wizard-nav">
-                        <button class="btn-ghost" onclick="goStep(2)">← Back</button>
-                        <button class="btn-primary" onclick="onSubmitClick()">Run Full AI Analysis — 6 Agents</button>
-                    </div>
+                <div class="agent-row">
+                    <div class="agent-dot" id="a6-dot"></div>
+                    <div class="agent-label">Decision Composer</div>
+                    <div class="agent-status-text" id="a6">waiting</div>
                 </div>
-            </div>
-            <div style="text-align:center;margin-top:16px;">
-                <a href="#" onclick="showAllSteps(event)"
-                    style="font-size:12px;color:var(--text-muted);text-decoration:none;">Show all fields at once</a>
             </div>
         </div>
+    </div>
 
-        <div class="friction-gate-overlay" id="friction-gate">
-            <div class="friction-gate-modal">
-                <div class="friction-gate-title">Just a quick check before we analyze...</div>
-                <div class="friction-gate-subtitle">To give you the most accurate advice, please answer honestly based
-                    on your current feelings.</div>
-
+    <!-- Friction Gate (Behavioral checks) -->
+    <div id="friction-gate" style="display:none" class="gate-overlay">
+        <div class="gate-inner">
+            <div class="gate-header">
+                <div class="section-label"><span>PRE-ANALYSIS ·</span> 5 REALITY CHECKS</div>
+                <div class="gate-title">Before we analyze — answer honestly.</div>
+                <div class="gate-subtitle">These help us identify cognitive blind spots. Takes 60 seconds.</div>
+            </div>
+            <div class="gate-questions" id="friction-questions">
                 <div class="friction-question active" id="fq1">
-                    <div class="friction-question-text">Are you analyzing this property because you genuinely haven't
-                        decided yet — or because you've already emotionally committed and want confirmation?</div>
-                    <div class="friction-options">
-                        <div class="friction-option" onclick="selectFriction('fq1', 'A')">I'm still genuinely undecided
-                            and evaluating</div>
-                        <div class="friction-option" onclick="selectFriction('fq1', 'B')">I like it a lot but haven't
-                            decided</div>
-                        <div class="friction-option" onclick="selectFriction('fq1', 'C')">I've already fallen in love
-                            with it and want to proceed</div>
-                    </div>
-                    <div class="friction-warning" id="fw1">Research shows 100% of buyers who have already 'fallen in
-                        love' treat a financial analysis as confirmation, not a check. Try to view this as if you were a
-                        neutral investor.</div>
-                </div>
-
-                <div class="friction-question active" id="fq2">
-                    <div class="friction-question-text">Do you have a specific, funded plan if your primary income stops
-                        completely for 3 months before you take possession?</div>
-                    <div class="friction-options">
-                        <div class="friction-option" onclick="selectFriction('fq2', 'A')">Yes — I have an emergency fund
-                            that covers it</div>
-                        <div class="friction-option" onclick="selectFriction('fq2', 'B')">I would manage somehow</div>
-                        <div class="friction-option" onclick="selectFriction('fq2', 'C')">No specific plan</div>
-                    </div>
-                    <div class="friction-warning" id="fw2">A 3-month income gap is the most common trigger for home loan
-                        default in India's salaried sector. Banks do not pause EMIs.</div>
-                </div>
-
-                <div class="friction-question" id="fq3">
-                    <div class="friction-question-text">Have you physically traveled from this property to your
-                        workplace at peak commute hours on a weekday morning?</div>
-                    <div class="friction-options">
-                        <div class="friction-option" onclick="selectFriction('fq3', 'A')">Yes — I've timed the actual
-                            commute</div>
-                        <div class="friction-option" onclick="selectFriction('fq3', 'B')">I've checked on Google Maps
-                        </div>
-                        <div class="friction-option" onclick="selectFriction('fq3', 'C')">Not yet</div>
-                    </div>
-                    <div class="friction-warning" id="fw3">Peripheral property buyers commonly underestimate commute
-                        time by 40-60%. A 90-minute commute each way destroys 750+ hours of life per year.</div>
-                </div>
-
-                <div class="friction-question active" id="fq4">
-                    <div class="friction-question-text">Do you know the current market rent for a similar flat in this
-                        exact area right now?</div>
-                    <div class="friction-options">
-                        <div class="friction-option" onclick="selectFriction('fq4', 'A')">Yes — I've checked active
-                            rental listings</div>
-                        <div class="friction-option" onclick="selectFriction('fq4', 'B')">Roughly, from general area
-                            knowledge</div>
-                        <div class="friction-option" onclick="selectFriction('fq4', 'C')">I haven't compared renting vs
-                            buying for this property</div>
-                    </div>
-                    <div class="friction-warning" id="fw4">Your rent-vs-buy analysis is only meaningful if the rent
-                        comparison is accurate. The break-even year can shift by 5+ years with wrong rental assumptions.
+                    <div style="font-family:var(--font-body); font-size:16px; margin-bottom:16px;">Are you analyzing
+                        this property because you genuinely haven't decided yet — or because you've already emotionally
+                        committed and want confirmation?</div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <div class="friction-option btn-ghost" onclick="selectFriction('fq1', 'A')"
+                            style="justify-content:flex-start; min-height:auto; padding:12px 16px;">I'm actually
+                            undecided</div>
+                        <div class="friction-option btn-ghost" onclick="selectFriction('fq1', 'B')"
+                            style="justify-content:flex-start; min-height:auto; padding:12px 16px;">I like it but
+                            haven't decided</div>
+                        <div class="friction-option btn-ghost" onclick="selectFriction('fq1', 'C')"
+                            style="justify-content:flex-start; min-height:auto; padding:12px 16px;">I want to validate
+                            my choice</div>
                     </div>
                 </div>
+            </div>
+            <div class="gate-actions">
+                <button class="btn-primary" onclick="proceedFromFriction()" id="friction-proceed" disabled>
+                    Proceed to Analysis &rarr;
+                </button>
+                <button class="btn-text" onclick="closeFrictionGate()">Skip checks</button>
+            </div>
+        </div>
+    </div>
 
-                <div class="friction-question" id="fq5">
-                    <div class="friction-question-text">Have you verified this builder's RERA registration and checked
-                        their on-time delivery record for previous projects?</div>
-                    <div class="friction-options">
-                        <div class="friction-option" onclick="selectFriction('fq5', 'A')">Yes — checked
-                            MahaRERA.mahaonline.gov.in</div>
-                        <div class="friction-option" onclick="selectFriction('fq5', 'B')">Checked online reviews and
-                            testimonials only</div>
-                        <div class="friction-option" onclick="selectFriction('fq5', 'C')">Not yet</div>
-                    </div>
-                    <div class="friction-warning" id="fw5">30% of Mumbai projects face delivery disputes. Builder
-                        reviews are curated. Only RERA records show actual complaint counts and completion rates.</div>
-                </div>
+    <!-- Report View -->
+    <div id="report-view" class="container view" style="display:none; padding-top:40px;">
 
-                <div class="friction-summary" id="friction-summary"></div>
+        <div id="r-verdict" class="report-section"></div>
+        <div id="r-research-warnings" class="report-section" style="display:none;"></div>
 
-                <div class="friction-actions">
-                    <button class="btn-ghost" style="width:auto;padding:12px 20px" onclick="closeFrictionGate()">Go Back
-                        and Reconsider</button>
-                    <button class="btn-primary" style="width:auto;padding:12px 24px" id="friction-proceed" disabled
-                        onclick="proceedFromFriction()">Proceed to Analysis</button>
-                </div>
+        <div id="share-bar" class="report-section" style="display:none">
+            <div style="display:flex; gap:16px; align-items:center;">
+                <input type="text" id="share-url-input" readonly class="field input"
+                    style="max-width:300px; padding:10px;">
+                <button class="btn-ghost" onclick="copyShareUrl()" id="copy-btn">Copy Link</button>
+                <button class="btn-ghost" onclick="shareWhatsApp()" id="wa-btn">Share on WhatsApp</button>
             </div>
         </div>
 
-        <div id="loading" role="status" aria-live="polite" aria-label="Analysis in progress">
-            <div class="fcard">
-                <div class="load-wrap">
-                    <div class="spinner"></div>
-                    <div class="load-title">Analysing Your Situation</div>
-                    <div class="load-sub">6 agents working in sequence — please wait</div>
-                    <div class="agents">
-                        <div class="arow" id="a1">
-                            <div class="adot"></div>
-                            <div class="aname">Context Synthesizer</div>
-                            <div class="astatus">waiting</div>
-                        </div>
-                        <div class="arow" id="a2">
-                            <div class="adot"></div>
-                            <div class="aname">Financial Analyst</div>
-                            <div class="astatus">waiting</div>
-                        </div>
-                        <div class="arow" id="a3">
-                            <div class="adot"></div>
-                            <div class="aname">Risk Simulator</div>
-                            <div class="astatus">waiting</div>
-                        </div>
-                        <div class="arow" id="a4">
-                            <div class="adot"></div>
-                            <div class="aname">Property Analyst</div>
-                            <div class="astatus">waiting</div>
-                        </div>
-                        <div class="arow" id="a5">
-                            <div class="adot"></div>
-                            <div class="aname">Assumption Challenger</div>
-                            <div class="astatus">waiting</div>
-                        </div>
-                        <div class="arow" id="a6">
-                            <div class="adot"></div>
-                            <div class="aname">Decision Composer</div>
-                            <div class="astatus">waiting</div>
-                        </div>
+        <div class="report-section">
+            <div class="section-label"><span>01 ·</span> CASH FLOW PREVIEW</div>
+            <div id="r-cashflow"></div>
+        </div>
+
+        <div class="report-section">
+            <div class="section-label"><span>02 ·</span> SCORECARD</div>
+            <div id="r-scorecard"></div>
+        </div>
+
+        <div class="report-section sensitivity-section" id="sensitivity-section">
+            <div class="section-label"><span>03 ·</span> WHAT-IF SLIDERS</div>
+            <div class="rcard">
+                <div class="slider-track">
+                    <div
+                        style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; margin-bottom:8px;">
+                        <span>Down Payment</span>
+                        <span id="wi-dp-val">—</span>
+                    </div>
+                    <input type="range" id="wi-dp" min="0" max="0" step="50000">
+                </div>
+                <div class="slider-track">
+                    <div
+                        style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; margin-bottom:8px;">
+                        <span>Property Price</span>
+                        <span id="wi-price-val">—</span>
+                    </div>
+                    <input type="range" id="wi-price" min="0" max="0" step="50000">
+                </div>
+                <div class="slider-track">
+                    <div
+                        style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:11px; margin-bottom:8px;">
+                        <span>Loan Tenure</span>
+                        <span id="wi-tenure-val">—</span>
+                    </div>
+                    <input type="range" id="wi-tenure" min="5" max="30" step="1">
+                </div>
+                <div class="metric-grid" style="grid-template-columns: repeat(4, 1fr); margin-top:24px;">
+                    <div class="metric-cell">
+                        <div class="metric-label">Monthly EMI</div>
+                        <div class="metric-number" id="wm-emi" style="font-size:16px">—</div>
+                    </div>
+                    <div class="metric-cell">
+                        <div class="metric-label">EMI / Income</div>
+                        <div class="metric-number" id="wm-ratio" style="font-size:16px">—</div>
+                    </div>
+                    <div class="metric-cell">
+                        <div class="metric-label">Surplus</div>
+                        <div class="metric-number" id="wm-surplus" style="font-size:16px">—</div>
+                    </div>
+                    <div class="metric-cell">
+                        <div class="metric-label">Runway</div>
+                        <div class="metric-number" id="wm-runway" style="font-size:16px">—</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div id="report">
-
-            <div id="share-bar" style="display:none" class="share-bar-container">
-                <div class="share-bar-inner">
-                    <span class="share-bar-label">📎 Analysis saved</span>
-                    <input type="text" id="share-url-input" readonly class="share-url-input">
-                    <button class="share-btn-copy" onclick="copyShareUrl()" id="copy-btn">Copy Link</button>
-                    <button class="share-btn-wa" onclick="shareWhatsApp()" id="wa-btn">Share on WhatsApp</button>
-                </div>
+        <div class="report-section">
+            <div class="section-label"><span>04 ·</span> STRESS TEST SCENARIOS</div>
+            <div class="rcard">
+                <div id="r-stress"></div>
             </div>
+        </div>
 
-            <div id="compare-bar" style="display:none;margin-bottom:16px">
-                <button class="btn-ghost" style="width:auto;padding:10px 20px" onclick="startComparison()">+ Compare
-                    with Another Property</button>
-                <span style="font-size:12px;color:var(--text-muted);margin-left:12px">Same financial profile, different
-                    property</span>
+        <div class="report-section">
+            <div class="section-label"><span>05 ·</span> PROPERTY ASSESSMENT</div>
+            <div class="rcard">
+                <div id="r-property"></div>
             </div>
+        </div>
 
-            <div id="compare-form" style="display:none" class="fcard">
-                <div class="fcard-title">📊 Property 2 — Enter Details</div>
-                <div class="g2">
-                    <div class="field"><label for="c_price">Property Price (₹)</label><input id="c_price" type="number"
-                            placeholder="85,00,000"></div>
-                    <div class="field"><label for="c_loc">Location / Area</label><input id="c_loc" type="text"
-                            placeholder="Powai"></div>
-                    <div class="field"><label for="c_sqft">Carpet Area (sqft)</label><input id="c_sqft" type="number"
-                            placeholder="650"></div>
-                    <div class="field"><label for="c_dp">Down Payment (₹)</label><input id="c_dp" type="number"
-                            placeholder="17,00,000"></div>
-                    <div class="field"><label for="c_rdy">Ready to Move?</label>
-                        <select id="c_rdy">
-                            <option value="true">Yes</option>
-                            <option value="false">No — Under Construction</option>
-                        </select>
-                    </div>
-                    <div class="field"><label for="c_bld">Builder Name</label><input id="c_bld" type="text"
-                            placeholder="Optional"></div>
-                </div>
-                <div style="display:flex;gap:10px;margin-top:8px">
-                    <button class="btn-primary" style="flex:1" onclick="runComparison()">Analyze Property 2</button>
-                    <button class="btn-ghost" style="flex:0 0 auto;padding:0 20px"
-                        onclick="cancelComparison()">Cancel</button>
-                </div>
-            </div>
-
-            <div id="compare-results" style="display:none" class="rcard">
-                <div class="rcard-title">📊 Side-by-Side Comparison</div>
-                <div id="compare-table-container"></div>
-                <button class="btn-ghost" style="margin-top:12px;width:auto;padding:8px 20px"
-                    onclick="clearComparison()">Clear Comparison</button>
-            </div>
-
-            <div class="print-header">
-                <h1 style="font-family:Arial;font-size:18pt;margin-bottom:4pt">Niv AI — Home Buying Analysis</h1>
-                <p id="print-meta" style="font-size:10pt;color:#666;margin-bottom:16pt"></p>
-            </div>
-
-            <div id="r-verdict"></div>
-            <div id="r-research-warnings" style="display:none;margin-bottom:16px"></div>
-
-            <div class="cashflow-hero" id="r-cashflow"></div>
-
-            <div class="rcard whatif-section" id="r-whatif">
-                <div class="rcard-title">🔧 What-If Explorer — Adjust & See Impact Instantly</div>
-                <div class="whatif-note">Slide to explore how changes affect your key metrics. No AI re-run needed —
-                    this uses the same financial model instantly.</div>
-                <div class="whatif-sliders">
-                    <div class="slider-group">
-                        <div class="slider-header">
-                            <span class="slider-label">Down Payment</span>
-                            <span class="slider-value" id="wi-dp-val">—</span>
-                        </div>
-                        <input type="range" class="wi-slider" id="wi-dp" min="0" max="0" step="50000">
-                    </div>
-                    <div class="slider-group">
-                        <div class="slider-header">
-                            <span class="slider-label">Property Price</span>
-                            <span class="slider-value" id="wi-price-val">—</span>
-                        </div>
-                        <input type="range" class="wi-slider" id="wi-price" min="0" max="0" step="50000">
-                    </div>
-                    <div class="slider-group">
-                        <div class="slider-header">
-                            <span class="slider-label">Loan Tenure</span>
-                            <span class="slider-value" id="wi-tenure-val">—</span>
-                        </div>
-                        <input type="range" class="wi-slider" id="wi-tenure" min="5" max="30" step="1">
-                    </div>
-                </div>
-                <div class="whatif-metrics">
-                    <div class="wm-item">
-                        <div class="wm-label">Monthly EMI</div>
-                        <div class="wm-val" id="wm-emi">—</div>
-                        <div class="wm-delta" id="wm-emi-d"></div>
-                    </div>
-                    <div class="wm-item">
-                        <div class="wm-label">EMI / Income</div>
-                        <div class="wm-val" id="wm-ratio">—</div>
-                        <div class="wm-delta" id="wm-ratio-d"></div>
-                    </div>
-                    <div class="wm-item">
-                        <div class="wm-label">Monthly Surplus</div>
-                        <div class="wm-val" id="wm-surplus">—</div>
-                        <div class="wm-delta" id="wm-surplus-d"></div>
-                    </div>
-                    <div class="wm-item">
-                        <div class="wm-label">Emergency Runway</div>
-                        <div class="wm-val" id="wm-runway">—</div>
-                        <div class="wm-delta" id="wm-runway-d"></div>
-                    </div>
-                </div>
-                <button class="btn-ghost" style="margin-top:8px;width:auto;padding:8px 20px" onclick="resetWhatIf()">↺
-                    Reset to Original</button>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:8px">For updated AI insights and a new
-                    verdict, use "Run Another Scenario" below.</div>
-            </div>
-
-            <div class="scorecard" id="r-scorecard"></div>
-
-            <div class="row2">
-                <div class="rcard">
-                    <div class="rcard-title">⚡ What Happens If Things Go Wrong</div>
-                    <div id="r-stress" class="stress-grid"></div>
-                </div>
-                <div class="rcard">
-                    <div class="rcard-title">🏘 Is This Property Worth It?</div>
-                    <div id="r-property"></div>
-                </div>
-            </div>
-
-            <div class="rcard" style="margin-bottom:14px">
-                <div class="rcard-title">🔄 Renting vs Buying — The Real Cost</div>
+        <div class="report-section">
+            <div class="section-label"><span>06 ·</span> RENT VS BUY</div>
+            <div class="rcard">
                 <div id="r-rvb"></div>
             </div>
+        </div>
 
-            <div class="rcard" style="margin-bottom:14px">
-                <div class="rcard-title">💸 True Cost of Ownership</div>
+        <div class="report-section">
+            <div class="section-label"><span>07 ·</span> TRUE COST OF OWNERSHIP</div>
+            <div class="rcard">
                 <div id="r-tco"></div>
-            </div>
-
-            <div class="rcard" style="margin-bottom:14px">
-                <div class="rcard-title">⚠️ Assumptions Being Made About You</div>
-                <div id="r-challenges"></div>
-            </div>
-
-            <div class="row2">
-                <div class="rcard">
-                    <div class="rcard-title">📋 Why This Verdict</div>
-                    <ul class="reason-list" id="r-reasons"></ul>
-                </div>
-                <div class="rcard">
-                    <div class="rcard-title">✅ What To Do Next</div>
-                    <ul class="action-list" id="r-actions"></ul>
-                </div>
-            </div>
-
-            <div id="r-path-to-safe" style="display:none;margin-bottom:14px"></div>
-
-            <div class="rcard" style="margin-bottom:14px">
-                <div class="rcard-title">💬 Full Analysis</div>
-                <div id="r-reasoning" class="reasoning"></div>
-            </div>
-
-            <div class="row2">
-                <div class="rcard">
-                    <div class="rcard-title">🔍 What's Not Being Considered</div>
-                    <div class="pills" id="r-blind"></div>
-                </div>
-                <div class="rcard">
-                    <div class="rcard-title">🧠 Cognitive Biases to Watch</div>
-                    <div class="pills" id="r-emo"></div>
-                </div>
-            </div>
-
-            <div class="meta" id="r-meta"></div>
-
-            <div class="report-actions">
-                <button class="btn-ghost" onclick="downloadPDF()" style="width:auto;padding:10px 20px">⬇ Download
-                    PDF</button>
-                <button class="btn-ghost" onclick="downloadLinkedInCard()" style="width:auto;padding:10px 20px">💼
-                    LinkedIn Card</button>
-                <button class="btn-ghost" onclick="reset()" style="width:auto;padding:10px 20px">← New Analysis</button>
-            </div>
-
-            <div class="print-disclaimer">
-                Generated by Niv AI on <span id="print-date"></span>.
-                This analysis is for informational purposes only. Not financial advice.
-                Verify all data independently. Consult a SEBI-registered financial advisor
-                before making any property purchase decision.
-                <br>Data sources: Mumbai benchmark data Q4 2025 · Indian income tax rules ·
-                Maharashtra stamp duty rates · RBI home loan guidelines.
             </div>
         </div>
 
+        <div class="report-section">
+            <div class="section-label"><span>08 ·</span> DOCUMENT VERIFICATION SUITE</div>
+            <div class="rcard" id="r-documents">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+                    <div class="doc-upload-zone" onclick="document.getElementById('ec-file').click()">
+                        <input type="file" id="ec-file" accept=".pdf" style="display:none">
+                        <div style="font-family:var(--font-mono); font-size:12px; margin-bottom:8px;">UPLOAD EC PDF
+                        </div>
+                        <div style="font-size:11px; color:var(--text-dim)">Checks mortgages & title chain</div>
+                    </div>
+                    <div class="doc-upload-zone" onclick="document.getElementById('loan-file').click()">
+                        <input type="file" id="loan-file" accept=".pdf,image/*" style="display:none">
+                        <div style="font-family:var(--font-mono); font-size:12px; margin-bottom:8px;">UPLOAD BANK LETTER
+                        </div>
+                        <div style="font-size:11px; color:var(--text-dim)">Extracts rate & hidden charges</div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:16px; margin-top:24px;">
+                    <button class="btn-ghost" onclick="downloadCounterOffer()">Counter-Offer Letter</button>
+                    <button class="btn-ghost" onclick="openBankEmailModal()">Loan Inquiry Email</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="report-section">
+            <div class="section-label"><span>09 ·</span> ASSUMPTIONS CHALLENGED</div>
+            <div id="r-challenges"></div>
+        </div>
+
+        <div class="report-section" style="display:flex; gap:24px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:300px;">
+                <div class="section-label"><span>10 ·</span> WHY THIS VERDICT</div>
+                <div id="r-reasons"></div>
+            </div>
+            <div style="flex:1; min-width:300px;">
+                <div class="section-label"><span>11 ·</span> ACTIONS</div>
+                <div id="r-actions"></div>
+            </div>
+        </div>
+
+        <div class="report-section">
+            <div class="section-label"><span>12 ·</span> PATH TO SAFE</div>
+            <div id="r-path-to-safe"></div>
+        </div>
+
+        <div class="report-section">
+            <div class="section-label"><span>13 ·</span> FULL REASONING</div>
+            <div id="r-reasoning"></div>
+        </div>
+
+        <div class="report-section" style="display:flex; gap:24px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:300px;">
+                <div class="section-label"><span>14 ·</span> BLIND SPOTS</div>
+                <div id="r-blind"></div>
+            </div>
+            <div style="flex:1; min-width:300px;">
+                <div class="section-label"><span>15 ·</span> COGNITIVE BIASES</div>
+                <div id="r-emo"></div>
+            </div>
+        </div>
+
+        <div class="report-section comparison-section" id="compare-section">
+            <div class="section-label"><span>16 ·</span> COMPARISON</div>
+            <div id="compare-bar" style="margin-bottom:16px">
+                <button class="btn-ghost" onclick="startComparison()">+ Compare Property</button>
+            </div>
+            <div id="compare-form" class="rcard" style="display:none;">
+                <div class="field-grid">
+                    <div class="field"><label class="field-label" for="c_price">PROPERTY PRICE</label><input
+                            type="number" id="c_price"></div>
+                    <div class="field"><label class="field-label" for="c_loc">LOCATION</label><input type="text"
+                            id="c_loc"></div>
+                    <div class="field"><label class="field-label" for="c_sqft">CARPET AREA</label><input type="number"
+                            id="c_sqft"></div>
+                    <div class="field"><label class="field-label" for="c_dp">DOWN PAYMENT</label><input type="number"
+                            id="c_dp"></div>
+                    <div class="field"><label class="field-label" for="c_rdy">READY TO MOVE</label>
+                        <select id="c_rdy">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="display:flex; gap:16px;">
+                    <button class="btn-primary" onclick="runComparison()">Analyze 2nd Property</button>
+                </div>
+            </div>
+            <div id="compare-results"></div>
+        </div>
+
+        <div class="report-section">
+            <div class="section-label"><span>17 ·</span> META</div>
+            <div id="r-meta"></div>
+        </div>
+
+        <div class="report-actions" style="display:flex; gap:16px; margin:64px 0;">
+            <button class="btn-primary" onclick="downloadPDF()">Download PDF</button>
+            <button class="btn-ghost" onclick="downloadLinkedInCard()">LinkedIn Card</button>
+        </div>
+
+    </div>
+
+    <div id="bank-email-modal" class="gate-overlay" style="display:none;">
+        <div class="gate-inner rcard">
+            <div class="section-label">LOAN INQUIRY</div>
+            <select id="target-bank" class="field input" style="margin-bottom:16px;">
+                <option value="HDFC">HDFC Bank</option>
+                <option value="SBI">SBI Bank</option>
+            </select>
+            <button class="btn-primary" onclick="generateBankEmail()" style="margin-bottom:16px; width:100%;">Generate
+                Draft</button>
+            <div id="bank-email-content" style="display:none; margin-bottom:16px;">
+                <div id="bank-email-preview"
+                    style="background:var(--surface-2); padding:16px; font-family:var(--font-mono); font-size:12px; color:var(--text); white-space:pre-wrap;">
+                </div>
+                <div style="display:flex; gap:16px; margin-top:16px;">
+                    <button class="btn-ghost" id="bank-email-copy-btn" onclick="copyBankEmail()">Copy</button>
+                </div>
+            </div>
+            <button class="btn-text" onclick="closeBankEmail()">Close</button>
+        </div>
     </div>
 
     <script src="app.js"></script>

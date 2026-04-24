@@ -4,6 +4,7 @@ import logging
 import os
 from typing import Optional
 from backend.calculations.benchmarks import lookup_area, AreaBenchmark
+from backend.calculations.legal_flags import assess_oc_cc_status
 from backend.integrations.rera_client import fetch_rera_data
 from backend.llm.client import LLMClient
 from backend.utils.sanitize import wrap_user_content
@@ -89,5 +90,27 @@ BENCHMARK: {bench_text}{rera_context}"""
     result = llm.parse_json(raw)
     if rera_data_dict:
         result["rera_data"] = rera_data_dict
+
+    # OC/CC status assessment (deterministic, no LLM)
+    try:
+        oc_cc = assess_oc_cc_status(
+            is_ready_to_move=prop["is_ready_to_move"],
+            possession_date=prop.get("possession_date", ""),
+            is_rera_registered=prop.get("is_rera_registered"),
+            builder_name=prop.get("builder_name", ""),
+            rera_data=rera_data_dict,
+        )
+        result["oc_cc_status"] = {
+            "oc_status": oc_cc.oc_status,
+            "cc_status": oc_cc.cc_status,
+            "risk_level": oc_cc.risk_level,
+            "risk_flags": oc_cc.risk_flags,
+            "legal_implications": oc_cc.legal_implications,
+            "recommended_actions": oc_cc.recommended_actions,
+            "overall_note": oc_cc.overall_note,
+        }
+    except Exception as oc_exc:
+        logger.warning("OC/CC assessment failed: %s", oc_exc)
+
     logger.info("Property analyst complete")
     return result

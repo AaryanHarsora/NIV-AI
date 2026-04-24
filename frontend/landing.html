@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NIV AI — Home Buying Decision Engine</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- SECTION 0 — NAV -->
+  <nav class="landing-nav container">
+    <div class="nav-logo">NIV <em></em></div>
+    <div class="nav-links">
+      <a href="#how-it-works">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#what-you-get">What you get</a>
+    </div>
+    <div>
+      <a href="/" class="btn-primary" style="min-height: 40px; padding: 0 20px; font-size: 13px;">Analyze Property</a>
+    </div>
+  </nav>
+
+  <!-- SECTION 1 — HERO -->
+  <section class="landing-section container" style="padding-top: 80px;">
+    <div class="feature-row" style="margin-bottom: 0;">
+      <div>
+        <div class="section-label"><span>MUMBAI REAL ESTATE</span> &middot; INTELLIGENCE SYSTEM</div>
+        <h1 class="landing-h1">
+          Financial data in.<br><em>Property verdict out.</em>
+        </h1>
+        <p class="landing-sub">
+          NIV AI runs your complete financial situation through 6 specialized agents and gives you a clear SAFE, RISKY, or RECONSIDER verdict — backed by math, stress tests, and behavioral analysis.
+        </p>
+        
+        <div style="display: flex; gap: 16px; align-items: center;">
+          <a href="/" class="btn-primary" style="font-size: 15px; padding: 0 32px;">Start your analysis</a>
+          <a href="#features" class="btn-ghost" style="font-size: 15px;">See how it works</a>
+        </div>
+
+        <div style="display: flex; gap: 24px; margin-top: 48px; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column;">
+            <span class="fw-bold" style="font-size: 24px;">8.9s</span>
+            <span style="font-size: 12px; color: var(--text-muted);">Avg Analysis</span>
+          </div>
+          <div style="display: flex; flex-direction: column;">
+            <span class="fw-bold" style="font-size: 24px;">6 AI</span>
+            <span style="font-size: 12px; color: var(--text-muted);">Agents</span>
+          </div>
+        </div>
+      </div>
+      <div style="position: relative;">
+        <!-- Clean background circular accent -->
+        <div style="position: absolute; top: 10%; right: 10%; width: 400px; height: 400px; background: var(--accent-dim); border-radius: 50%; z-index: -1;"></div>
+        <!-- Using the newly generated image served locally -->
+        <img src="/static/hero_img.png" alt="Mobile Dashboard" style="width: 100%; max-width: 450px; display: block; margin: 0 auto; transform: rotate(-5deg); drop-shadow: 0 30px 40px rgba(0,0,0,0.1);">
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 2 — REAL TIME CAPTURE -->
+  <section id="features" class="landing-section container" style="padding-top: 40px;">
+    <h2 style="font-size: 40px; margin-bottom: 80px;">Real-time analysis,<br><em>built for homebuyers</em></h2>
+    
+    <div class="feature-row">
+      <div>
+        <div class="feature-list-item">
+          <div class="feature-icon-box">01</div>
+          <div>
+            <h3 style="font-size: 20px; margin-bottom: 8px;">Deterministic math</h3>
+            <p style="color: var(--text-dim);">Every rupee figure is computed by a strict Python financial engine. The LLM never performs arithmetic — agents just intelligently interpret the results.</p>
+          </div>
+        </div>
+        <div class="feature-list-item">
+          <div class="feature-icon-box">02</div>
+          <div>
+            <h3 style="font-size: 20px; margin-bottom: 8px;">Stress tested</h3>
+            <p style="color: var(--text-dim);">Job loss, rate hike, unexpected expense, and income stagnation. Your verdict is based on survival of crises, not best-case projections.</p>
+          </div>
+        </div>
+        <div class="feature-list-item">
+          <div class="feature-icon-box">03</div>
+          <div>
+            <h3 style="font-size: 20px; margin-bottom: 8px;">Behavioral checks</h3>
+            <p style="color: var(--text-dim);">Agent 5 plays devil's advocate, challenging assumptions about your future income to combat cognitive biases and blind spots.</p>
+          </div>
+        </div>
+      </div>
+      <div>
+        <img src="/static/tablet_img.png" alt="Report Tablet View" style="width: 100%; max-width: 550px; display: block; margin: 0 auto; drop-shadow: 0 20px 30px rgba(0,0,0,0.08);">
+      </div>
+    </div>
+  </section>
+
+  
+  <!-- SECTION 2.5 — AGENT TEAM -->
+  <section class="landing-section" style="background: var(--surface); padding: 80px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+    <div class="container">
+      <h2 style="font-size: 32px; margin-bottom: 48px;">Meet your intelligence engine.<br><em>Six distinct AI agents.</em></h2>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 32px;">
+        <div style="padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg);">
+            <div style="font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">AGENT 01</div>
+            <h4 style="font-size: 18px; margin-bottom: 8px;">Financial Analyst</h4>
+            <p style="font-size: 13px; color: var(--text-dim);">Evaluates debt-to-income, runway, and living expense strain using raw Python math engines.</p>
+        </div>
+        <div style="padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg);">
+            <div style="font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">AGENT 02</div>
+            <h4 style="font-size: 18px; margin-bottom: 8px;">Property Analyst</h4>
+            <p style="font-size: 13px; color: var(--text-dim);">Validates pricing against local Mumbai micro-market medians and highlights RERA status red flags.</p>
+        </div>
+        <div style="padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg);">
+            <div style="font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">AGENT 03</div>
+            <h4 style="font-size: 18px; margin-bottom: 8px;">Risk Simulator</h4>
+            <p style="font-size: 13px; color: var(--text-dim);">Subjects your cash flow to 4 local disasters: job loss, sudden major expense, stagnant income, and rate hikes.</p>
+        </div>
+        <div style="padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg);">
+            <div style="font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">AGENT 04</div>
+            <h4 style="font-size: 18px; margin-bottom: 8px;">Assumption Challenger</h4>
+            <p style="font-size: 13px; color: var(--text-dim);">Identifies cognitive biases and emotional momentum forcing you into a bad financial decision.</p>
+        </div>
+        <div style="padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg);">
+            <div style="font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">AGENT 05</div>
+            <h4 style="font-size: 18px; margin-bottom: 8px;">Context Synthesizer</h4>
+            <p style="font-size: 13px; color: var(--text-dim);">Injects RBI warnings, benchmark ratios, and real estate market rules into your scenario analysis.</p>
+        </div>
+        <div style="padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg);">
+            <div style="font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">AGENT 06</div>
+            <h4 style="font-size: 18px; margin-bottom: 8px;">Decision Composer</h4>
+            <p style="font-size: 13px; color: var(--text-dim);">Collates all signals to issue a ruthless SAFE, RISKY, or RECONSIDER verdict with actionable next steps.</p>
+        </div>
+      </div>
+
+      <div style="margin-top: 64px;">
+         <h3 style="font-size: 20px; margin-bottom: 24px;">Post-Analysis Action Services Included</h3>
+         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; align-items: start;">
+            <div style="display: flex; gap: 16px;">
+               <div style="color: var(--green); font-size: 20px; font-weight: 800;">✓</div>
+               <div><span class="fw-bold">Bank Inquiry Email Generator</span><br><span style="font-size: 12px; color: var(--text-dim);">Generates formal PDF to query loan rates based on your specific risk profile.</span></div>
+            </div>
+            <div style="display: flex; gap: 16px;">
+               <div style="color: var(--green); font-size: 20px; font-weight: 800;">✓</div>
+               <div><span class="fw-bold">Counter-Offer PDF Creator</span><br><span style="font-size: 12px; color: var(--text-dim);">Provides mathematical justification to negotiate a lower builder price by citing area medians.</span></div>
+            </div>
+            <div style="display: flex; gap: 16px;">
+               <div style="color: var(--green); font-size: 20px; font-weight: 800;">✓</div>
+               <div><span class="fw-bold">Encumbrance & OCR Scanner</span><br><span style="font-size: 12px; color: var(--text-dim);">Upload your EC and Loan Letter PDFs for automated trap detection and risk parsing.</span></div>
+            </div>
+         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3 — TIMELINE -->
+  <section id="how-it-works" class="landing-section" style="background: var(--surface-2); padding: 80px 0;">
+    <div class="container">
+      <h2 style="font-size: 40px; margin-bottom: 16px;">Four steps from financial<br>input to real estate <em>clarity.</em></h2>
+      
+      <div class="timeline-grid">
+        <div class="timeline-step">
+          <div class="timeline-number">01</div>
+          <h4 style="font-size: 16px;">Your details</h4>
+          <p style="font-size: 13px; color: var(--text-dim);">Provide income, existing EMIs, and monthly savings capacity in a simple secure form.</p>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-number">02</div>
+          <h4 style="font-size: 16px;">Property target</h4>
+          <p style="font-size: 13px; color: var(--text-dim);">Define the price, RERA registration, possession details, and down payment setup.</p>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-number">03</div>
+          <h4 style="font-size: 16px;">Agent analysis</h4>
+          <p style="font-size: 13px; color: var(--text-dim);">Six distinct agents parallel process market realities, cash flow traps, and true costs.</p>
+        </div>
+        <div class="timeline-step">
+          <div class="timeline-number">04</div>
+          <h4 style="font-size: 16px;">Verdict generation</h4>
+          <p style="font-size: 13px; color: var(--text-dim);">A comprehensive SAFE, RISKY, or RECONSIDER verdict with an actionable PDF.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 4 — CTA -->
+  <section class="landing-section container" style="text-align: center; padding: 120px 0;">
+    <h2 style="font-size: 48px; margin-bottom: 24px;">Transform your home<br>buying process.</h2>
+    <p style="color: var(--text-dim); margin-bottom: 48px; font-size: 18px;">Just 3 minutes. Zero cost. Full actionable visibility.</p>
+    <div>
+      <a href="/" class="btn-primary" style="font-size: 16px; min-height: 54px; padding: 0 40px;">Get Started Now</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer style="border-top: 1px solid var(--border); padding: 48px 0; text-align: center; color: var(--text-muted); font-size: 12px; background: var(--bg);">
+    <div class="container">
+      <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 16px;">
+         <div style="background: var(--accent); width: 10px; height: 10px; border-radius: 50%;"></div>
+         <span class="fw-bold" style="color: var(--text);">NIV AI</span>
+      </div>
+      <div style="margin-bottom: 8px;">Mumbai Home Buying Intelligence</div>
+      <div style="color: var(--text-faint);">Not financial advice. Educational purposes only.</div>
+    </div>
+  </footer>
+
+</body>
+</html>
