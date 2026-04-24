@@ -9,6 +9,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Optional
 
+from backend.calculations.delta_engine import classify_financial_state, compute_survival_timeline
+
 
 @dataclass
 class EMIResult:
@@ -95,6 +97,11 @@ class ComputedNumbers:
     annual_commute_cost_estimate: float = field(default=0.0)
     maintenance_5yr_projected_cost: float = field(default=0.0)
     true_monthly_cost_after_all_factors: float = field(default=0.0)
+    financial_state: str = field(default="")
+    survival_timeline: dict = field(default_factory=dict)
+    assumptions_made: list = field(default_factory=list)
+    stability_score: dict = field(default_factory=dict)
+    affordability_envelope: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -126,6 +133,11 @@ class ComputedNumbers:
             "maintenance_5yr_projected_cost": self.maintenance_5yr_projected_cost,
             "true_monthly_cost_after_all_factors": self.true_monthly_cost_after_all_factors,
             "down_payment": self.down_payment,
+            "assumptions_made": self.assumptions_made,
+            "stability_score": self.stability_score,
+            "affordability_envelope": self.affordability_envelope,
+            "financial_state": self.financial_state,
+            "survival_timeline": self.survival_timeline,
         }
 
 
@@ -281,12 +293,435 @@ def calculate_rent_vs_buy(equivalent_monthly_rent: float, total_monthly_ownershi
                            true_monthly_premium=true_premium, break_even_years=min(break_even, 99.0))
 
 
+def normalize_inputs(raw: dict) -> tuple[dict, list[str]]:
+    """
+    Normalizes and validates raw input before computation.
+    Returns (cleaned_dict, list_of_assumptions_made).
+
+    Rules:
+    - monthly_expenses: if 0 or missing, default to 40% of income,
+      flag as assumption
+    - existing_emis: if negative, set to 0
+    - liquid_savings: if > property_price * 5, flag as unusually high
+    - down_payment: if < property_price * 0.20, flag minimum RBI requirement
+    - interest_rate: if < 6.5 or > 15, flag as outside normal range
+    - carpet_area_sqft: if < 100 or > 10000, flag as unusual
+    - spouse_income: if negative, set to 0
+    - dependents: if > 10, cap at 10 with flag
+
+    Each assumption made is appended to the list as a plain English string.
+    Returns the cleaned dict and the assumptions list.
+    These assumptions flow into confidence_score calculation.
+    """
+    cleaned = dict(raw)
+    assumptions: list[str] = []
+
+    monthly_income = float(cleaned.get('monthly_income') or 0)
+    spouse_income = float(cleaned.get('spouse_income') or 0)
+    total_income = monthly_income + spouse_income
+
+    # spouse_income: if negative, set to 0
+    if spouse_income < 0:
+        cleaned['spouse_income'] = 0.0
+        assumptions.append("Spouse income was negative; reset to 0")
+        spouse_income = 0.0
+        total_income = monthly_income
+
+    # monthly_expenses: if 0 or missing, default to 40% of income
+    monthly_expenses = float(cleaned.get('monthly_expenses') or 0)
+    if monthly_expenses == 0:
+        defaulted = round(total_income * 0.40, 2)
+        cleaned['monthly_expenses'] = defaulted
+        assumptions.append(
+            f"Monthly expenses not provided; defaulted to 40% of household income "
+            f"(Rs.{defaulted:,.0f})"
+        )
+
+    # existing_emis: if negative, set to 0
+    existing_emis = float(cleaned.get('existing_emis') or 0)
+    if existing_emis < 0:
+        cleaned['existing_emis'] = 0.0
+        assumptions.append("Existing EMIs were negative; reset to 0")
+
+    property_price = float(cleaned.get('property_price') or 0)
+
+    # liquid_savings: if > property_price * 5, flag as unusually high
+    liquid_savings = float(cleaned.get('liquid_savings') or 0)
+    if property_price > 0 and liquid_savings > property_price * 5:
+        assumptions.append(
+            f"Liquid savings (Rs.{liquid_savings:,.0f}) are unusually high — more than 5x "
+            f"the property price (Rs.{property_price:,.0f}); verify this is correct"
+        )
+
+    # down_payment: if < property_price * 0.20, flag minimum RBI requirement
+    down_payment = float(cleaned.get('down_payment') or 0)
+    if property_price > 0 and down_payment < property_price * 0.20:
+        min_required = round(property_price * 0.20, 2)
+        assumptions.append(
+            f"Down payment (Rs.{down_payment:,.0f}) is below RBI's minimum 20% requirement "
+            f"(Rs.{min_required:,.0f})"
+        )
+
+    # interest_rate: if < 6.5 or > 15, flag as outside normal range
+    interest_rate = float(cleaned.get('interest_rate') or 0)
+    if interest_rate > 0 and (interest_rate < 6.5 or interest_rate > 15):
+        assumptions.append(
+            f"Interest rate ({interest_rate}%) is outside the normal Indian home loan range "
+            f"(6.5–15%); verify this is the correct rate"
+        )
+
+    # carpet_area_sqft: if < 100 or > 10000, flag as unusual
+    carpet_area = float(cleaned.get('carpet_area_sqft') or 0)
+    if carpet_area > 0 and (carpet_area < 100 or carpet_area > 10000):
+        assumptions.append(
+            f"Carpet area ({carpet_area:,.0f} sqft) is outside the typical residential range "
+            f"(100–10,000 sqft); verify the unit is correct"
+        )
+
+    # dependents: if > 10, cap at 10 with flag
+    dependents = int(cleaned.get('dependents') or 0)
+    if dependents > 10:
+        cleaned['dependents'] = 10
+        assumptions.append(
+            f"Dependents count ({dependents}) exceeds the maximum modelled value; capped at 10"
+        )
+
+    return cleaned, assumptions
+
+
+def compute_confidence_score(
+    raw_input: dict,
+    assumptions_made: list[str],
+    benchmark_coverage: str
+) -> dict:
+    """
+    Scores analysis confidence 1-10 based on data completeness.
+
+    Deductions from base score of 10:
+    - monthly_expenses missing/defaulted: -1.5
+    - no builder_name provided: -0.5
+    - no carpet_area_sqft (using default): -1.0
+    - benchmark_coverage == 'default': -2.0
+    - benchmark_coverage == 'partial': -1.0
+    - possession_date missing for under-construction: -1.0
+    - each assumption_made beyond 2: -0.3 each
+    - employment_type == 'freelance' or 'business': -0.5
+      (income less predictable)
+
+    Returns dict with:
+    - score: float (1-10, rounded to 1 decimal)
+    - label: "High" | "Medium" | "Low"
+    - reasons: list of strings explaining deductions
+    - data_completeness_pct: int (0-100)
+    """
+    score = 10.0
+    reasons: list[str] = []
+
+    # monthly_expenses missing/defaulted
+    if not raw_input.get('monthly_expenses'):
+        score -= 1.5
+        reasons.append("Monthly expenses not provided (defaulted to 40% of income): -1.5")
+
+    # no builder_name
+    if not raw_input.get('builder_name'):
+        score -= 0.5
+        reasons.append("Builder name not provided: -0.5")
+
+    # no carpet_area_sqft
+    if not raw_input.get('carpet_area_sqft'):
+        score -= 1.0
+        reasons.append("Carpet area not provided (using default): -1.0")
+
+    # benchmark_coverage
+    if benchmark_coverage == 'default':
+        score -= 2.0
+        reasons.append("Benchmark data using defaults — no local comparables available: -2.0")
+    elif benchmark_coverage == 'partial':
+        score -= 1.0
+        reasons.append("Benchmark data only partially available: -1.0")
+
+    # possession_date missing for under-construction
+    is_ready_to_move = raw_input.get('is_ready_to_move', True)
+    if not is_ready_to_move and not raw_input.get('possession_date'):
+        score -= 1.0
+        reasons.append(
+            "Possession date missing for under-construction property: -1.0"
+        )
+
+    # each assumption beyond 2
+    extra = max(len(assumptions_made) - 2, 0)
+    if extra > 0:
+        deduction = round(extra * 0.3, 1)
+        score -= deduction
+        reasons.append(
+            f"{extra} additional assumption(s) required beyond normal threshold: -{deduction}"
+        )
+
+    # employment_type unpredictable income
+    employment_type = str(raw_input.get('employment_type') or '').lower()
+    if employment_type in ('freelance', 'business'):
+        score -= 0.5
+        reasons.append(
+            f"Employment type is '{employment_type}' — income less predictable than salaried: -0.5"
+        )
+
+    score = max(round(score, 1), 1.0)
+
+    if score >= 7.0:
+        label = "High"
+    elif score >= 4.0:
+        label = "Medium"
+    else:
+        label = "Low"
+
+    key_fields = [
+        'monthly_income', 'monthly_expenses', 'liquid_savings', 'property_price',
+        'down_payment', 'interest_rate', 'carpet_area_sqft', 'builder_name',
+        'employment_type', 'loan_tenure_years',
+    ]
+    present = sum(1 for f in key_fields if raw_input.get(f))
+    data_completeness_pct = int(present / len(key_fields) * 100)
+
+    return {
+        'score': score,
+        'label': label,
+        'reasons': reasons,
+        'data_completeness_pct': data_completeness_pct,
+    }
+
+
+def compute_stability_score(
+    base_computed: dict,
+    monthly_income: float,
+    property_price: float,
+    down_payment: float,
+    interest_rate: float,
+    loan_tenure_years: int,
+    **kwargs
+) -> dict:
+    """
+    Tests how sensitive the verdict is to small input changes.
+    Flags if tiny changes flip the outcome significantly.
+
+    Tests:
+    1. Income -10%: recompute EMI ratio. If ratio crosses 30% or 45%
+       threshold, flag as "income-sensitive"
+    2. Rate +1%: recompute EMI. If crosses threshold, flag as
+       "rate-sensitive"
+    3. Property price +5%: recompute. Flag if changes verdict zone.
+
+    Returns dict with:
+    - is_stable: bool
+    - income_sensitivity: "low" | "medium" | "high"
+    - rate_sensitivity: "low" | "medium" | "high"
+    - price_sensitivity: "low" | "medium" | "high"
+    - stability_label: "Stable" | "Strained" | "Fragile" | "Critical"
+    - tipping_points: list of strings describing exact thresholds
+      e.g. "A 10% income drop would push EMI ratio from 28% to 31%,
+      crossing the 'stretched' threshold"
+    """
+    spouse_income = float(kwargs.get('spouse_income') or 0)
+    household_income = max(monthly_income + spouse_income, 1.0)
+    loan_amount = max(property_price - down_payment, 0.0)
+    tenure_months = loan_tenure_years * 12
+
+    base_emi: float = base_computed.get('monthly_emi', 0.0)
+    base_ratio: float = base_computed.get('emi_to_income_ratio', 0.0)
+
+    tipping_points: list[str] = []
+
+    # Test 1: Income -10%
+    reduced_income = household_income * 0.90
+    income_ratio = round(base_emi / reduced_income, 4) if reduced_income > 0 else 99.0
+    if base_ratio < 0.45 <= income_ratio:
+        income_sensitivity = "high"
+        tipping_points.append(
+            f"A 10% income drop would push EMI ratio from {base_ratio:.0%} to {income_ratio:.0%}, "
+            f"crossing the 'danger' threshold (45%)"
+        )
+    elif base_ratio < 0.30 <= income_ratio:
+        income_sensitivity = "medium"
+        tipping_points.append(
+            f"A 10% income drop would push EMI ratio from {base_ratio:.0%} to {income_ratio:.0%}, "
+            f"crossing the 'stretched' threshold (30%)"
+        )
+    else:
+        income_sensitivity = "low"
+
+    # Test 2: Rate +1%
+    new_emi = calculate_emi(loan_amount, interest_rate + 1.0, tenure_months).monthly_emi
+    rate_ratio = round(new_emi / household_income, 4) if household_income > 0 else 99.0
+    if base_ratio < 0.45 <= rate_ratio:
+        rate_sensitivity = "high"
+        tipping_points.append(
+            f"A 1% rate increase would raise EMI from Rs.{base_emi:,.0f} to Rs.{new_emi:,.0f}, "
+            f"pushing ratio from {base_ratio:.0%} to {rate_ratio:.0%} — crossing the 'danger' threshold (45%)"
+        )
+    elif base_ratio < 0.30 <= rate_ratio:
+        rate_sensitivity = "medium"
+        tipping_points.append(
+            f"A 1% rate increase would raise EMI from Rs.{base_emi:,.0f} to Rs.{new_emi:,.0f}, "
+            f"pushing ratio from {base_ratio:.0%} to {rate_ratio:.0%} — crossing the 'stretched' threshold (30%)"
+        )
+    else:
+        rate_sensitivity = "low"
+
+    # Test 3: Property price +5%
+    new_loan = max(property_price * 1.05 - down_payment, 0.0)
+    price_emi = calculate_emi(new_loan, interest_rate, tenure_months).monthly_emi
+    price_ratio = round(price_emi / household_income, 4) if household_income > 0 else 99.0
+    if base_ratio < 0.45 <= price_ratio:
+        price_sensitivity = "high"
+        tipping_points.append(
+            f"A 5% property price increase would push EMI ratio from {base_ratio:.0%} to {price_ratio:.0%}, "
+            f"crossing the 'danger' threshold (45%)"
+        )
+    elif base_ratio < 0.30 <= price_ratio:
+        price_sensitivity = "medium"
+        tipping_points.append(
+            f"A 5% property price increase would push EMI ratio from {base_ratio:.0%} to {price_ratio:.0%}, "
+            f"crossing the 'stretched' threshold (30%)"
+        )
+    else:
+        price_sensitivity = "low"
+
+    sensitivities = [income_sensitivity, rate_sensitivity, price_sensitivity]
+    high_count = sensitivities.count("high")
+    medium_count = sensitivities.count("medium")
+
+    if high_count >= 2 or base_ratio >= 0.45:
+        stability_label = "Critical"
+    elif high_count == 1:
+        stability_label = "Fragile"
+    elif medium_count >= 1:
+        stability_label = "Strained"
+    else:
+        stability_label = "Stable"
+
+    return {
+        'is_stable': stability_label == "Stable",
+        'income_sensitivity': income_sensitivity,
+        'rate_sensitivity': rate_sensitivity,
+        'price_sensitivity': price_sensitivity,
+        'stability_label': stability_label,
+        'tipping_points': tipping_points,
+    }
+
+
+def compute_affordability_envelope(
+    monthly_income: float,
+    spouse_income: float,
+    existing_emis: float,
+    monthly_expenses: float,
+    liquid_savings: float,
+    interest_rate: float,
+    loan_tenure_years: int,
+    **kwargs
+) -> dict:
+    """
+    Calculates the SAFE range for property price and down payment.
+
+    Safe max property price: binary search for price where
+      EMI/income < 0.30 AND runway > 6 months
+    Stretch max property price: binary search for price where
+      EMI/income < 0.45 AND runway > 3 months
+    Min down payment for safe: binary search for down_payment where
+      same criteria met at current property_price
+
+    Returns dict with:
+    - safe_max_price: float
+    - stretch_max_price: float
+    - min_down_for_safe: float
+    - current_vs_safe_pct: float (how far current price is from safe max)
+    - envelope_label: "Within safe range" | "Slightly above" |
+                      "Well above" | "Dangerously above"
+    """
+    property_price = float(kwargs.get('property_price') or 0)
+    down_payment = float(kwargs.get('down_payment') or 0)
+    household_income = max(monthly_income + spouse_income, 1.0)
+    tenure_months = loan_tenure_years * 12
+
+    def _metrics(price: float, dp: float) -> tuple[float, float]:
+        loan = max(price - dp, 0.0)
+        emi = calculate_emi(loan, interest_rate, tenure_months).monthly_emi
+        ratio = emi / household_income
+        post_savings = max(liquid_savings - dp, 0.0)
+        burn = emi + monthly_expenses + existing_emis
+        runway = post_savings / burn if burn > 0 else 0.0
+        return ratio, runway
+
+    def _safe(price: float, dp: float) -> bool:
+        ratio, runway = _metrics(price, dp)
+        return ratio < 0.30 and runway > 6
+
+    def _stretch(price: float, dp: float) -> bool:
+        ratio, runway = _metrics(price, dp)
+        return ratio < 0.45 and runway > 3
+
+    # Binary search: safe_max_price (down payment held fixed)
+    lo, hi = 0.0, household_income * 300.0
+    for _ in range(50):
+        mid = (lo + hi) / 2
+        if _safe(mid, down_payment):
+            lo = mid
+        else:
+            hi = mid
+    safe_max_price = round(lo, -3)
+
+    # Binary search: stretch_max_price
+    lo, hi = 0.0, household_income * 500.0
+    for _ in range(50):
+        mid = (lo + hi) / 2
+        if _stretch(mid, down_payment):
+            lo = mid
+        else:
+            hi = mid
+    stretch_max_price = round(lo, -3)
+
+    # Binary search: min_down_for_safe at current property_price
+    if property_price > 0:
+        lo, hi = 0.0, min(liquid_savings, property_price)
+        for _ in range(50):
+            mid = (lo + hi) / 2
+            if _safe(property_price, mid):
+                hi = mid  # this dp works; try smaller
+            else:
+                lo = mid  # need more dp
+        min_down_for_safe = round(hi, -3)
+    else:
+        min_down_for_safe = 0.0
+
+    # How far is the current price above the safe max
+    if safe_max_price > 0 and property_price > 0:
+        current_vs_safe_pct = round((property_price - safe_max_price) / safe_max_price * 100, 1)
+    else:
+        current_vs_safe_pct = 0.0
+
+    if current_vs_safe_pct <= 0:
+        envelope_label = "Within safe range"
+    elif current_vs_safe_pct <= 20:
+        envelope_label = "Slightly above"
+    elif current_vs_safe_pct <= 50:
+        envelope_label = "Well above"
+    else:
+        envelope_label = "Dangerously above"
+
+    return {
+        'safe_max_price': safe_max_price,
+        'stretch_max_price': stretch_max_price,
+        'min_down_for_safe': min_down_for_safe,
+        'current_vs_safe_pct': current_vs_safe_pct,
+        'envelope_label': envelope_label,
+    }
+
+
 def compute_all(monthly_income: float, spouse_income: float, existing_emis: float,
                 monthly_expenses: float, liquid_savings: float, dependents: int,
                 property_price: float, down_payment: float, loan_tenure_years: int,
                 interest_rate: float, carpet_area_sqft: float, buyer_gender: str,
                 is_ready_to_move: bool, maintenance_per_sqft: float = 5.5,
-                equivalent_rent: float = 0.0, commute_distance_km: float = 0.0) -> ComputedNumbers:
+                equivalent_rent: float = 0.0, commute_distance_km: float = 0.0,
+                **kwargs) -> ComputedNumbers:
     """
     Master financial computation function. Runs all deterministic calculations for a home-buying decision.
 
@@ -307,10 +742,46 @@ def compute_all(monthly_income: float, spouse_income: float, existing_emis: floa
         maintenance_per_sqft: Monthly maintenance charge per sqft. Defaults to 5.5.
         equivalent_rent: Market rent for a comparable property. Defaults to 2.5% yield estimate.
         commute_distance_km: One-way commute distance to office in km. Defaults to 0 (not provided).
+        **kwargs: Extra fields (builder_name, employment_type, possession_date, etc.) passed
+            through to normalize_inputs and downstream enrichment layers.
 
     Returns:
         ComputedNumbers dataclass containing all computed financial metrics.
     """
+    # Build raw dict and normalize inputs
+    raw = {
+        'monthly_income': monthly_income,
+        'spouse_income': spouse_income,
+        'existing_emis': existing_emis,
+        'monthly_expenses': monthly_expenses,
+        'liquid_savings': liquid_savings,
+        'dependents': dependents,
+        'property_price': property_price,
+        'down_payment': down_payment,
+        'loan_tenure_years': loan_tenure_years,
+        'interest_rate': interest_rate,
+        'carpet_area_sqft': carpet_area_sqft,
+        'buyer_gender': buyer_gender,
+        'is_ready_to_move': is_ready_to_move,
+        **kwargs,
+    }
+    cleaned, assumptions_made = normalize_inputs(raw)
+
+    # Re-bind from cleaned (normalization may have adjusted values)
+    monthly_income = float(cleaned.get('monthly_income', monthly_income))
+    spouse_income = float(cleaned.get('spouse_income', spouse_income))
+    existing_emis = float(cleaned.get('existing_emis', existing_emis))
+    monthly_expenses = float(cleaned.get('monthly_expenses', monthly_expenses))
+    liquid_savings = float(cleaned.get('liquid_savings', liquid_savings))
+    dependents = int(cleaned.get('dependents', dependents))
+    property_price = float(cleaned.get('property_price', property_price))
+    down_payment = float(cleaned.get('down_payment', down_payment))
+    loan_tenure_years = int(cleaned.get('loan_tenure_years', loan_tenure_years))
+    interest_rate = float(cleaned.get('interest_rate', interest_rate))
+    carpet_area_sqft = float(cleaned.get('carpet_area_sqft', carpet_area_sqft))
+    buyer_gender = cleaned.get('buyer_gender', buyer_gender)
+    is_ready_to_move = cleaned.get('is_ready_to_move', is_ready_to_move)
+
     loan_amount = max(property_price - down_payment, 0)
     tenure_months = loan_tenure_years * 12
     emi = calculate_emi(loan_amount, interest_rate, tenure_months)
@@ -348,6 +819,47 @@ def compute_all(monthly_income: float, spouse_income: float, existing_emis: floa
         2,
     )
 
+    # Financial state classification and survival timeline
+    _metrics_for_state = {
+        'emi_to_income_ratio': ratios.emi_to_income,
+        'emergency_runway_months': ratios.emergency_runway_months,
+        'down_payment_to_savings_ratio': ratios.down_payment_to_savings,
+    }
+    fin_state = classify_financial_state(_metrics_for_state)
+    survival = compute_survival_timeline(
+        monthly_income=monthly_income,
+        monthly_burn=emi.monthly_emi + monthly_expenses + existing_emis,
+        liquid_savings=liquid_savings,
+        post_purchase_savings=post_purchase_savings,
+        monthly_emi=emi.monthly_emi,
+    )
+
+    # Stability and affordability layers
+    base_dict = {
+        'monthly_emi': emi.monthly_emi,
+        'emi_to_income_ratio': ratios.emi_to_income,
+    }
+    stability = compute_stability_score(
+        base_computed=base_dict,
+        monthly_income=monthly_income,
+        property_price=property_price,
+        down_payment=down_payment,
+        interest_rate=interest_rate,
+        loan_tenure_years=loan_tenure_years,
+        spouse_income=spouse_income,
+    )
+    envelope = compute_affordability_envelope(
+        monthly_income=monthly_income,
+        spouse_income=spouse_income,
+        existing_emis=existing_emis,
+        monthly_expenses=monthly_expenses,
+        liquid_savings=liquid_savings,
+        interest_rate=interest_rate,
+        loan_tenure_years=loan_tenure_years,
+        property_price=property_price,
+        down_payment=down_payment,
+    )
+
     return ComputedNumbers(
         emi=emi, acquisition=acquisition, monthly_ownership=monthly_own, ratios=ratios,
         tax_benefits=tax, stress_scenarios=stress, rent_vs_buy=rvb,
@@ -359,6 +871,11 @@ def compute_all(monthly_income: float, spouse_income: float, existing_emis: floa
         annual_commute_cost_estimate=commute_annual,
         maintenance_5yr_projected_cost=maintenance_5yr,
         true_monthly_cost_after_all_factors=true_monthly,
+        assumptions_made=assumptions_made,
+        stability_score=stability,
+        affordability_envelope=envelope,
+        financial_state=fin_state,
+        survival_timeline=survival,
     )
 
 

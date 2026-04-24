@@ -67,7 +67,7 @@ if os.path.isdir(frontend_dir):
 
     @app.get("/", include_in_schema=False)
     async def serve_frontend():
-        return FileResponse(_index_html_path)
+        return FileResponse(os.path.join(frontend_dir, "landing.html"))
 
     @app.get("/landing.html", include_in_schema=False)
     async def serve_landing():
@@ -77,13 +77,14 @@ if os.path.isdir(frontend_dir):
     async def serve_style():
         return FileResponse(os.path.join(frontend_dir, "style.css"))
 
+    @app.get("/calc", include_in_schema=False)
+    async def serve_calc():
+        return FileResponse(os.path.join(frontend_dir, "index.html"))
+
     @app.get("/app.js", include_in_schema=False)
     async def serve_app_js():
-        """Serve app.js at root path (browser requests it relative to index.html)."""
+        """Serve app.js for the frontend."""
         return FileResponse(os.path.join(frontend_dir, "app.js"), media_type="application/javascript")
-
-    @app.get("/report/{report_id}", include_in_schema=False)
-    async def serve_shared_report(report_id: str):
         """Serve a saved report by embedding the report data into the index.html page."""
         report = await fs.get_report(report_id)
         if not report:

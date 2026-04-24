@@ -1,5 +1,64 @@
 const API = ''; // Update if backend is hosted elsewhere
 
+// === STATE MANAGEMENT ===
+const STATE = {
+  currentStep: 1, selectedLanguage: 'english',
+  lastReport: null, lastInput: null, lastComputed: null,
+  whatIfOriginal: null, lastInputCached: null,
+  comparisonReport: null, currentShareUrl: '',
+  bankEmailContent: null, frictionAnswers: {},
+  marketRatesCache: null, marketRatesFetchTime: 0,
+};
+
+// === UTILITY FUNCTIONS ===
+/**
+ * Animates element textContent from 0 to target value with easing.
+ * @param {HTMLElement} el @param {number} target @param {number} duration
+ * @param {Function} formatter
+ */
+function animateCount(el, target, duration=800, formatter=v=>Math.round(v)) {
+  const start = performance.now();
+  function tick(now) {
+    const p = Math.min((now-start)/duration, 1);
+    const ease = 1-Math.pow(1-p, 3);
+    el.textContent = formatter(ease * target);
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+/**
+ * Staggered entrance animation on array of elements.
+ * @param {NodeList|Array} elements @param {string} className @param {number} staggerMs
+ */
+function staggerEntrance(elements, className, staggerMs=60) {
+  [...elements].forEach((el, i) =>
+    setTimeout(() => el.classList.add(className), i * staggerMs));
+}
+
+/**
+ * IntersectionObserver that fires callback once when element enters viewport.
+ * @param {HTMLElement} el @param {Function} callback @param {number} threshold
+ */
+function onVisible(el, callback, threshold=0.2) {
+  if (!el) return;
+  new IntersectionObserver((entries, obs) => {
+    if (entries[0].isIntersecting) { callback(); obs.unobserve(el); }
+  }, {threshold}).observe(el);
+}
+
+/**
+ * Formats number input with Indian comma system, stores raw in data-raw.
+ * @param {HTMLInputElement} input
+ */
+function setupIndianNumberFormat(input) {
+  input.addEventListener('input', function() {
+    const raw = this.value.replace(/[^0-9]/g, '');
+    this.dataset.raw = raw;
+    if (raw) this.value = Number(raw).toLocaleString('en-IN');
+  });
+}
+
 // --- STATE VARIABLES ---
 let currentStep = 1;
 let selectedLanguage = 'english';
@@ -23,7 +82,7 @@ function preview(el, previewId) {
     if (!p) return; p.textContent = v > 0 ? '= ' + inr(v) : '';
 }
 
-// --- WIZARD & LANGUAGE TOGGLE ---
+// === FORM / WIZARD ===
 function setLang(lang, btn) {
     selectedLanguage = lang;
     document.querySelectorAll('.lang-opt').forEach(b => b.classList.remove('active'));
@@ -53,27 +112,65 @@ function goStep(n) {
         document.getElementById('err').style.display = 'none';
     }
 
+    // Animate outgoing step slides left
+    const outgoing = document.querySelector('[data-step].active');
+    const incoming = document.querySelector(`[data-step="${n}"]`);
+    if (outgoing && incoming && outgoing !== incoming) {
+        outgoing.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+        outgoing.style.transform = 'translateX(-30px)';
+        outgoing.style.opacity = '0';
+        setTimeout(() => {
+            outgoing.style.transition = '';
+            outgoing.style.transform = '';
+            outgoing.style.opacity = '';
+        }, 300);
+    }
+
     document.querySelectorAll('[data-step]').forEach(el => el.classList.remove('active'));
-    document.querySelector(`[data-step="${n}"]`).classList.add('active');
+
+    // Animate incoming step from right
+    if (incoming) {
+        incoming.style.transform = 'translateX(30px)';
+        incoming.style.opacity = '0';
+        incoming.classList.add('active');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            incoming.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+            incoming.style.transform = 'translateX(0)';
+            incoming.style.opacity = '1';
+            setTimeout(() => {
+                incoming.style.transition = '';
+                incoming.style.transform = '';
+                incoming.style.opacity = '';
+            }, 300);
+        }));
+    } else {
+        document.querySelector(`[data-step="${n}"]`).classList.add('active');
+    }
 
     document.querySelectorAll('.w-step').forEach((el, idx) => {
         el.classList.remove('active', 'completed');
         if (idx + 1 < n) el.classList.add('completed');
         if (idx + 1 === n) el.classList.add('active');
     });
-    
+
     // Fill the connector lines
     const fill1 = document.getElementById('w-fill-1');
     const fill2 = document.getElementById('w-fill-2');
     if (fill1 && fill2) {
+        fill1.classList.toggle('filled', n >= 2);
+        fill2.classList.toggle('filled', n >= 3);
         if (n === 1) { fill1.style.width = '0%'; fill2.style.width = '0%'; }
         else if (n === 2) { fill1.style.width = '100%'; fill2.style.width = '0%'; }
         else if (n === 3) { fill1.style.width = '100%'; fill2.style.width = '100%'; }
     }
 
+    // Show/hide TTC badge based on current view
+    const ttcBadge = document.getElementById('ttc-badge');
+    if (ttcBadge) ttcBadge.style.display = n >= 2 ? 'block' : 'none';
+
     currentStep = n;
     window.scrollTo(0, 0);
-    if (n === 2) { updateEMIPreview(); loadMarketRates(); }
+    if (n === 2) { updateEMIPreview(); loadMarketRates(); fetchMarketRates(); }
 }
 
 function showAllSteps(e) {
@@ -93,14 +190,14 @@ async function verifyGST() {
     const gstin = getVal('builder_gstin');
     const resDiv = document.getElementById('gst-result');
     if(!gstin) return;
-    
+
     resDiv.textContent = "Verifying...";
     resDiv.style.color = "var(--text-dim)";
-    
+
     try {
         const res = await fetch(`${API}/api/v1/tools/gst-check?gstin=${encodeURIComponent(gstin)}`);
         const data = await res.json();
-        
+
         if (res.ok && data.legal_name) {
             resDiv.innerHTML = `<span style="color:var(--green)">✓ Valid: ${esc(data.legal_name)}</span>`;
             document.getElementById('builder_name').value = data.legal_name; // Sync across fields
@@ -140,6 +237,45 @@ function calculateClientEMI(principal, annualRatePct, tenureYears) {
 
 let marketRatesData = null;
 
+// === MARKET DATA ===
+/**
+ * Fetches live market rates from /api/v1/market/rates.
+ * Caches result for 5 minutes. Updates #market-rates-banner.
+ */
+async function fetchMarketRates() {
+  const banner = document.getElementById('market-rates-banner');
+  if (!banner) return;
+  const now = Date.now();
+  if (STATE.marketRatesCache && now - STATE.marketRatesFetchTime < 300000) {
+    displayMarketRates(STATE.marketRatesCache); return;
+  }
+  try {
+    const res = await fetch('/api/v1/market/rates');
+    if (!res.ok) return;
+    const data = await res.json();
+    STATE.marketRatesCache = data;
+    STATE.marketRatesFetchTime = now;
+    displayMarketRates(data);
+  } catch(e) { /* silent fail */ }
+}
+
+function displayMarketRates(data) {
+  const banner = document.getElementById('market-rates-banner');
+  const text = document.getElementById('market-rates-text');
+  if (!banner || !text) return;
+  const floor = data.sbi_rate || data.min_rate || 8.5;
+  const ceil = data.max_rate || 9.9;
+  const repo = data.rbi_repo_rate || 6.5;
+  text.textContent = `Market rates: ${floor}–${ceil}% · RBI repo: ${repo}%`;
+  banner.style.display = 'flex';
+  const userRate = +document.getElementById('expected_interest_rate')?.value;
+  if (userRate && userRate < floor) {
+    text.style.color = 'var(--yellow)';
+    text.textContent += ' ⚠ Your rate may be below current market floor';
+  }
+}
+
+// === EMI PREVIEW ===
 let emiDebounce;
 function updateEMIPreview() {
     clearTimeout(emiDebounce);
@@ -179,6 +315,21 @@ function updateEMIPreview() {
         } else {
             zoneEl.textContent = '';
         }
+
+        function updateEMIArc(ratio) {
+            const path = document.getElementById('arc-fill-path');
+            const label = document.getElementById('arc-label');
+            if (!path || !label) return;
+            const maxDash = 251;
+            const fill = Math.min(ratio, 0.6) / 0.6;
+            path.style.strokeDashoffset = maxDash - (maxDash * fill);
+            path.style.stroke = ratio < 0.3 ? 'var(--green)' :
+                                ratio < 0.45 ? 'var(--yellow)' : 'var(--red)';
+            label.textContent = (ratio * 100).toFixed(1) + '%';
+            path.style.transition = 'stroke-dashoffset 0.4s ease, stroke 0.3s ease';
+        }
+        updateEMIArc(ratio);
+
         // Show rate warning if market data is loaded
         if (marketRatesData && rate > 0) updateRateWarning(rate, marketRatesData);
     }, 300);
@@ -255,7 +406,7 @@ function proceedFromFriction() { closeFrictionGate(); submitAnalysis(); }
 // --- SUBMISSION & API ---
 function collectFormData() {
     const r = getVal('is_rera_registered');
-    
+
     let combinedNotes = getVal('property_notes') || '';
     const gstin = getVal('builder_gstin');
     const rera = getVal('rera_number');
@@ -291,8 +442,10 @@ function collectFormData() {
 
 let _t = null;
 function setA(id, st) {
-    const el = document.getElementById(id); el.className = 'arow ' + st;
-    el.querySelector('.astatus').textContent = st === 'running' ? 'running…' : st === 'done' ? '✓ done' : 'waiting';
+    const dot = document.getElementById(id + '-dot');
+    const txt = document.getElementById(id);
+    if (dot) dot.className = 'agent-dot ' + (st === 'done' ? 'done' : st === 'running' ? 'running' : '');
+    if (txt) txt.textContent = st === 'running' ? 'running…' : st === 'done' ? '✓ done' : 'waiting';
 }
 function startA() {
     const ids = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6']; let i = 0;
@@ -1178,10 +1331,401 @@ function renderOcCcStatus(occc) {
         </div>`;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// INIT ---
+// === VISUAL FEATURES ===
+
+/**
+ * FEATURE 1: Adds verdict-appropriate pulse animation to verdict element.
+ * @param {HTMLElement} el @param {string} verdict safe|risky|reconsider
+ */
+function renderVerdictPulse(el, verdict) {
+  if (!el) return;
+  el.classList.remove('safe', 'risky', 'reconsider');
+  el.classList.add(verdict);
+  const conf = document.getElementById('conf-fill');
+  if (conf) setTimeout(() => conf.style.width = conf.dataset.target, 100);
+}
+
+/**
+ * FEATURE 2: Renders SVG shield that fills based on runway months.
+ * Full at 12mo, cracked at 3-6mo, shattered at <3mo.
+ * @param {HTMLElement} container @param {number} runwayMonths
+ */
+function renderSavingsShield(container, runwayMonths) {
+  if (!container) return;
+  const months = runwayMonths || 0;
+  const fillRatio = Math.min(months / 12, 1);
+  const fillY = 100 - fillRatio * 100;
+  const color = months >= 6 ? 'var(--green)' : months >= 3 ? 'var(--yellow)' : 'var(--red)';
+  const bgColor = months >= 6 ? 'var(--green-bg)' : months >= 3 ? 'var(--yellow-bg)' : 'var(--red-bg)';
+  // Crack paths for degraded states
+  const cracks = months < 6 ? `
+    <path d="M40 30 L50 50 L38 65" stroke="${color}" stroke-width="1.5" fill="none" opacity="0.7"/>
+    <path d="M60 25 L55 45 L65 58" stroke="${color}" stroke-width="1.5" fill="none" opacity="0.7"/>
+    ${months < 3 ? `
+    <path d="M30 50 L45 55 L35 70" stroke="${color}" stroke-width="1.2" fill="none" opacity="0.5"/>
+    <path d="M65 40 L70 60 L58 72" stroke="${color}" stroke-width="1.2" fill="none" opacity="0.5"/>
+    <path d="M48 20 L44 35 L55 40" stroke="${color}" stroke-width="1" fill="none" opacity="0.4"/>
+    ` : ''}
+  ` : '';
+  container.innerHTML = `
+    <svg viewBox="0 0 100 110" width="80" height="88" style="display:block;margin:0 auto">
+      <defs>
+        <clipPath id="shield-clip-${container.id || 'sh'}">
+          <path d="M50 5 L90 20 L90 55 Q90 85 50 105 Q10 85 10 55 L10 20 Z"/>
+        </clipPath>
+      </defs>
+      <!-- Shield background -->
+      <path d="M50 5 L90 20 L90 55 Q90 85 50 105 Q10 85 10 55 L10 20 Z"
+            fill="${bgColor}" stroke="${color}" stroke-width="2"/>
+      <!-- Fill rect clipped to shield shape -->
+      <rect x="10" y="${fillY}" width="80" height="100"
+            fill="${color}" opacity="0.25"
+            clip-path="url(#shield-clip-${container.id || 'sh'})"/>
+      ${cracks}
+      <!-- Label -->
+      <text x="50" y="58" text-anchor="middle" font-size="16" font-weight="700"
+            fill="${color}" font-family="'DM Mono', monospace">${months.toFixed(1)}</text>
+      <text x="50" y="72" text-anchor="middle" font-size="8"
+            fill="${color}" font-family="'DM Mono', monospace" opacity="0.8">MO</text>
+    </svg>`;
+}
+
+/**
+ * FEATURE 3: Animated SVG river flow replacing cash flow waterfall.
+ * Income splits into obligation streams, surplus flows right.
+ * @param {HTMLElement} container @param {Object} computed @param {Object} fin
+ */
+function renderRiverFlow(container, computed, fin) {
+  if (!container) return;
+  const income = (fin.monthly_income || 0) + (fin.spouse_income || 0);
+  if (income <= 0) return;
+  const emi = computed.monthly_emi || 0;
+  const maint = (computed.monthly_ownership_cost || emi) - emi;
+  const emis = fin.existing_emis || 0;
+  const exp = fin.monthly_expenses || 0;
+  const surplus = Math.max(income - emi - maint - emis - exp, 0);
+  const pct = v => Math.max((v / income) * 100, 2).toFixed(1);
+  const streams = [
+    { label: 'EMI', value: emi, color: 'var(--red)' },
+    { label: 'Maint', value: maint, color: 'var(--yellow)' },
+    { label: 'Expenses', value: exp, color: '#f97316' },
+    { label: 'Surplus', value: surplus, color: 'var(--green)' },
+  ].filter(s => s.value > 0);
+  let paths = '';
+  let yOff = 10;
+  streams.forEach((s, i) => {
+    const h = Math.max((s.value / income) * 80, 4);
+    const cy1 = yOff + h / 2;
+    const cx = i === streams.length - 1 ? 260 : 220;
+    paths += `
+      <path d="M 60 50 C 120 50 140 ${cy1} ${cx} ${cy1}"
+            stroke="${s.color}" stroke-width="${Math.max(h * 0.6, 2)}" fill="none"
+            stroke-dasharray="200" stroke-dashoffset="200" opacity="0.85">
+        <animate attributeName="stroke-dashoffset" from="200" to="0"
+                 dur="${0.6 + i * 0.2}s" begin="${i * 0.15}s" fill="freeze" calcMode="spline"
+                 keySplines="0.4 0 0.2 1"/>
+      </path>
+      <text x="${cx + 8}" y="${cy1 + 4}" font-size="9" fill="${s.color}"
+            font-family="'DM Mono', monospace">${s.label} ${pct(s.value)}%</text>`;
+    yOff += h + 4;
+  });
+  container.innerHTML = `
+    <svg viewBox="0 0 300 100" width="100%" height="100" style="overflow:visible">
+      <rect x="0" y="30" width="60" height="40" rx="4"
+            fill="var(--accent-dim)" stroke="var(--accent)" stroke-width="1"/>
+      <text x="30" y="52" text-anchor="middle" font-size="9" fill="var(--accent)"
+            font-family="'DM Mono', monospace">INCOME</text>
+      <text x="30" y="63" text-anchor="middle" font-size="7" fill="var(--text-muted)"
+            font-family="'DM Mono', monospace">${(income/100000).toFixed(1)}L</text>
+      ${paths}
+    </svg>`;
+}
+
+/**
+ * FEATURE 4: Balance beam SVG tilting based on EMI/income ratio.
+ * @param {HTMLElement} container @param {number} emiRatio
+ */
+function initDebtGravity(container, emiRatio) {
+  if (!container) return;
+  const deg = emiRatio < 0.25 ? -5 : emiRatio < 0.40 ? -15 :
+              emiRatio < 0.55 ? -28 : -45;
+  const svg = `<svg viewBox="0 0 120 60" style="width:120px;height:60px">
+    <circle cx="60" cy="30" r="4" fill="var(--border-bright)"/>
+    <line id="beam" x1="10" y1="30" x2="110" y2="30"
+          stroke="var(--text-dim)" stroke-width="2"
+          style="transform-origin:60px 30px;
+                 transform:rotate(${deg}deg);
+                 transition:transform 1s var(--anim-spring)"/>
+    <circle cx="25" cy="18" r="12" fill="var(--red-bg)"
+            stroke="var(--red)" stroke-width="1.5"/>
+    <circle cx="95" cy="18" r="8" fill="var(--green-bg)"
+            stroke="var(--green)" stroke-width="1.5"/>
+  </svg>`;
+  container.innerHTML = svg;
+  setTimeout(() => {
+    const beam = container.querySelector('#beam');
+    if (beam) beam.style.transform = `rotate(${deg}deg)`;
+  }, 300);
+}
+
+/**
+ * FEATURE 5: Circular countdown ring showing runway months.
+ * Animates from empty to filled over 800ms.
+ * @param {string} svgId - ID of the burn-clock SVG element
+ * @param {number} runwayMonths
+ */
+function initBurnClock(svgId, runwayMonths) {
+  const fill = document.getElementById('burn-fill');
+  const num = document.getElementById('burn-num');
+  if (!fill || !num) return;
+  const maxMonths = 12;
+  const circumference = 201;
+  const ratio = Math.min(runwayMonths, maxMonths) / maxMonths;
+  const color = runwayMonths >= 6 ? 'var(--green)' :
+                runwayMonths >= 3 ? 'var(--yellow)' : 'var(--red)';
+  fill.style.stroke = color;
+  fill.style.transition = 'stroke-dashoffset 0.8s var(--anim-ease)';
+  let count = 0;
+  const target = Math.round(runwayMonths * 10) / 10;
+  const steps = 40;
+  const interval = setInterval(() => {
+    count++;
+    const p = count / steps;
+    const ease = 1 - Math.pow(1 - p, 3);
+    num.textContent = (ease * target).toFixed(1);
+    fill.style.strokeDashoffset = circumference - (circumference * ratio * ease);
+    if (count >= steps) { clearInterval(interval); num.textContent = target.toFixed(1); }
+  }, 800 / steps);
+}
+
+/**
+ * FEATURE 6: Point of No Return timeline for job loss scenario.
+ * Shows which month default risk begins.
+ * @param {HTMLElement} container @param {Object} scenario stress scenario object
+ */
+function renderPointOfNoReturn(container, scenario) {
+  if (!container) return;
+  const months = Math.min(Math.max(Math.round(scenario.months_before_default || 6), 0), 6);
+  const survived = scenario.can_survive;
+  let segs = '';
+  for (let i = 1; i <= 6; i++) {
+    const color = survived ? 'var(--green)' :
+                  i <= months ? 'var(--yellow)' : 'var(--red)';
+    segs += `<div class="ponr-seg" style="background:${color};
+      flex:1;height:8px;border-radius:2px;margin:0 2px;
+      animation:card-enter 300ms ${i * 50}ms both"></div>`;
+  }
+  container.innerHTML = `
+    <div style="display:flex;margin:10px 0 4px">${segs}</div>
+    <div style="font-size:10px;font-family:var(--font-mono);
+         color:var(--text-muted);display:flex;justify-content:space-between">
+      <span>Month 1</span>
+      <span>${survived ? '✓ Survives 6 months' : `⚠ Risk from month ${months}`}</span>
+      <span>Month 6</span>
+    </div>`;
+}
+
+/**
+ * FEATURE 7: ECG-style heartbeat canvas showing cash flow rhythm.
+ * Healthy surplus = regular beats. Low/negative = flat or erratic.
+ * @param {HTMLCanvasElement} canvas @param {number} surplus @param {number} income
+ */
+function initHeartbeatGraph(canvas, surplus, income) {
+  if (!canvas) return;
+  onVisible(canvas, () => drawHeartbeat(canvas, surplus, income));
+}
+
+function drawHeartbeat(canvas, surplus, income) {
+  canvas.width = canvas.offsetWidth || 300;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height || 80;
+  const ratio = Math.max(Math.min(surplus / Math.max(income, 1), 0.5), -0.3);
+  const beats = 12, beatW = W / beats;
+  const baseY = H * 0.7, spikeH = ratio * H * 1.2;
+  ctx.fillStyle = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bg').trim() || '#080810';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let y = H * 0.25; y < H; y += H * 0.25) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  let progress = 0;
+  const totalPoints = beats * 10;
+  const interval = setInterval(() => {
+    progress = Math.min(progress + 2, totalPoints);
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg').trim() || '#080810';
+    ctx.fillRect(0, 0, W, H);
+    ctx.beginPath();
+    ctx.strokeStyle = surplus > 0 ? '#22c55e' : '#ef4444';
+    ctx.lineWidth = 2;
+    for (let b = 0; b < beats; b++) {
+      const bx = b * beatW;
+      const points = [[0, 0], [0.3, 0], [0.4, -0.3], [0.5, 1], [0.6, -0.2], [0.7, 0], [1, 0]];
+      points.forEach(([px, py], i) => {
+        const x = bx + px * beatW, y = baseY - py * spikeH;
+        const ptIdx = b * 10 + Math.round(px * 10);
+        if (ptIdx <= progress) {
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+      });
+    }
+    ctx.stroke();
+    if (progress >= totalPoints) clearInterval(interval);
+  }, 1000 / totalPoints * 1.5);
+}
+
+/**
+ * FEATURE 8: Staggered risk burst animation on failed stress test cards.
+ * @param {NodeList} cards - All stress test card elements
+ */
+function initRiskBurst(cards) {
+  [...cards].forEach((card, i) => {
+    if (card.classList.contains('fail') || card.dataset.survive === 'false') {
+      requestAnimationFrame(() =>
+        setTimeout(() => card.classList.add('burst-animate'), i * 150));
+    }
+  });
+}
+
+/**
+ * FEATURE 9: Buy Now vs Wait timeline using /api/v1/calculate.
+ * Runs 3 parallel scenarios with Promise.all.
+ * @param {Object} report @param {Object} rawInput
+ */
+async function initTimelineScenarios(report, rawInput) {
+  const container = document.getElementById('r-timeline');
+  if (!container || !rawInput) return;
+  const fin = rawInput.financial || {};
+  const prop = rawInput.property || {};
+  const monthlySavings = Math.max(
+    (fin.monthly_income || 0) + (fin.spouse_income || 0) -
+    (fin.existing_emis || 0) - (fin.monthly_expenses || 0) -
+    (report.computed_numbers?.monthly_emi || 0), 0);
+  const base = `monthly_income=${fin.monthly_income || 0}&spouse_income=${fin.spouse_income || 0}&existing_emis=${fin.existing_emis || 0}&monthly_expenses=${fin.monthly_expenses || 0}&liquid_savings=${fin.liquid_savings || 0}&dependents=${fin.dependents || 0}&loan_tenure_years=${prop.loan_tenure_years || 20}&interest_rate=${prop.expected_interest_rate || 8.5}&carpet_area_sqft=${prop.carpet_area_sqft || 700}&buyer_gender=${prop.buyer_gender || 'male'}&is_ready_to_move=${prop.is_ready_to_move || true}&location_area=${encodeURIComponent(prop.location_area || '')}&`;
+  const scenarios = [
+    { id: 'ts-now', label: 'BUY NOW', dp: prop.down_payment_available, price: prop.property_price },
+    { id: 'ts-6mo', label: 'WAIT 6 MO', dp: (prop.down_payment_available || 0) + monthlySavings * 6, price: (prop.property_price || 0) * 1.025 },
+    { id: 'ts-1yr', label: 'WAIT 1 YR', dp: (prop.down_payment_available || 0) + monthlySavings * 12, price: (prop.property_price || 0) * 1.05 },
+  ];
+  try {
+    const results = await Promise.all(scenarios.map(s =>
+      fetch(`${API}/api/v1/calculate?${base}property_price=${s.price}&down_payment=${s.dp}`)
+        .then(r => r.ok ? r.json() : null).catch(() => null)
+    ));
+    let bestIdx = 0, bestRatio = Infinity;
+    results.forEach((r, i) => {
+      if (r && r.emi_to_income_ratio < bestRatio) { bestRatio = r.emi_to_income_ratio; bestIdx = i; }
+    });
+    scenarios.forEach((s, i) => {
+      const el = document.getElementById(s.id + '-metrics');
+      const track = document.getElementById(s.id);
+      if (!el || !results[i]) return;
+      const r = results[i];
+      const zone = r.emi_to_income_ratio < 0.3 ? 'var(--green)' : r.emi_to_income_ratio < 0.45 ? 'var(--yellow)' : 'var(--red)';
+      el.innerHTML = `
+        <div style="font-family:var(--font-mono);margin-bottom:8px">
+          <div style="font-size:20px;color:${zone}">${(r.emi_to_income_ratio * 100).toFixed(1)}%</div>
+          <div style="font-size:10px;color:var(--text-muted)">EMI / INCOME</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-dim)">${r.emergency_runway_months?.toFixed(1)} mo runway</div>
+        <div style="font-size:12px;color:var(--text-dim)">${inr(r.monthly_emi)} /mo</div>
+        ${i === bestIdx ? '<div style="font-size:10px;font-weight:700;color:var(--accent);margin-top:6px">★ BEST OPTION</div>' : ''}`;
+      if (i === bestIdx && track) track.classList.add('recommended');
+    });
+    container.style.display = 'block';
+  } catch (e) { console.warn('Timeline scenarios failed:', e); }
+}
+
+/**
+ * FEATURE 10: Net worth mountain canvas — 10yr projection.
+ * Draws property value line, net worth curve, key markers.
+ * @param {HTMLCanvasElement} canvas @param {Object} computed @param {Object} rawInput
+ */
+function drawNetWorthMountain(canvas, computed, rawInput) {
+  if (!canvas) return;
+  canvas.width = canvas.offsetWidth || 600;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height || 200;
+  const fin = rawInput?.financial || {};
+  const prop = rawInput?.property || {};
+  const years = 10;
+  const pts = [];
+  let nw = (fin.liquid_savings || 0) - (prop.down_payment_available || 0);
+  const annualSurplus = Math.max(
+    ((fin.monthly_income || 0) + (fin.spouse_income || 0)) * 12 -
+    (computed.monthly_emi || 0) * 12 - (fin.monthly_expenses || 0) * 12, 0);
+  for (let y = 0; y <= years; y++) {
+    pts.push(nw);
+    nw += annualSurplus * Math.pow(1.08, y) * 0.7 +
+          (prop.property_price || 0) * 0.04;
+  }
+  const minV = Math.min(...pts), maxV = Math.max(...pts);
+  const pad = 30;
+  function toX(y) { return pad + (y / years) * (W - pad * 2); }
+  function toY(v) { return H - pad - ((v - minV) / (maxV - minV || 1)) * (H - pad * 2); }
+  ctx.fillStyle = '#080810';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  for (let i = 0; i <= 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(pad, pad + i * (H - pad * 2) / 5);
+    ctx.lineTo(W - pad, pad + i * (H - pad * 2) / 5);
+    ctx.stroke();
+  }
+  const propPts = Array.from({ length: years + 1 }, (_, y) => (prop.property_price || 0) * Math.pow(1.04, y));
+  ctx.beginPath(); ctx.strokeStyle = 'rgba(124,106,247,0.3)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
+  propPts.forEach((v, y) => y === 0 ? ctx.moveTo(toX(y), toY(v)) : ctx.lineTo(toX(y), toY(v)));
+  ctx.stroke(); ctx.setLineDash([]);
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(124,106,247,0.2)'); grad.addColorStop(1, 'rgba(124,106,247,0)');
+  ctx.beginPath(); ctx.moveTo(toX(0), toY(pts[0]));
+  pts.forEach((v, y) => ctx.lineTo(toX(y), toY(v)));
+  ctx.lineTo(toX(years), H - pad); ctx.lineTo(toX(0), H - pad); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+  let prog = 0;
+  const animate = setInterval(() => {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#080810'; ctx.fillRect(0, 0, W, H);
+    ctx.beginPath(); ctx.strokeStyle = 'var(--accent)'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+    pts.slice(0, Math.ceil(prog) + 1).forEach((v, i) => i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)));
+    ctx.stroke();
+    prog = Math.min(prog + 0.15, years);
+    if (prog >= years) {
+      clearInterval(animate);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = `10px 'DM Mono'`;
+      ctx.fillText('Year 0', toX(0) - 10, H - 8);
+      ctx.fillText('Year 10', toX(10) - 20, H - 8);
+      ctx.fillStyle = 'var(--accent)';
+      ctx.fillText(inr(pts[years]), toX(years) - 30, toY(pts[years]) - 8);
+    }
+  }, 1200 / years / 8);
+}
+
+// === INITIALIZATION ===
 document.addEventListener('DOMContentLoaded', () => {
     updateFinancialHealth();
+
+    // Setup Indian number formatting on financial inputs
+    ['monthly_income', 'spouse_income', 'liquid_savings', 'existing_emis',
+     'monthly_expenses', 'property_price', 'down_payment_available'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) setupIndianNumberFormat(el);
+    });
+
+    // Smart defaults for empty fields
+    const smartDefaults = {
+        monthly_income: 120000,
+        liquid_savings: 2000000,
+        existing_emis: 5000,
+        monthly_expenses: 45000,
+    };
+    Object.entries(smartDefaults).forEach(([id, val]) => {
+        const el = document.getElementById(id);
+        if (el && !el.value) el.value = val;
+    });
 
     if (window.__NIV_PRELOADED_REPORT__) {
         lastReport = window.__NIV_PRELOADED_REPORT__;
